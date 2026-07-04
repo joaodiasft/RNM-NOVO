@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PapelUsuario {
+  ADMIN
+  PROFESSOR
+  ALUNO
+  RESPONSAVEL
+}
+
+enum NomeCurso {
+  REDACAO
+  EXATAS
+  MATEMATICA
+}
+
+enum StatusMatricula {
+  ATIVA
+  TRANCADA
+  ENCERRADA
+}
+
+enum StatusPagamento {
+  PENDENTE
+  CONFIRMADO
+  ATRASADO
+}
+
+enum StatusSolicitacao {
+  PENDENTE
+  APROVADA
+  RECUSADA
+}
+
+enum PublicoAviso {
+  TODOS
+  CURSO
+  TURMA
+  ALUNO
+}
+
+model Admin {
+  id        String       @id @default(cuid())
+  nome      String
+  email     String       @unique
+  senhaHash String
+  fotoUrl   String?
+  criadoEm  DateTime     @default(now())
+  tokens    TokenAdmin[]
+}
+
+model TokenAdmin {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  codigo     String
+  criadoEm   DateTime @default(now())
+  expiraEm   DateTime
+  usado      Boolean  @default(false)
+  tentativas Int      @default(0)
+}
+
+model Professor {
+  id        String           @id @default(cuid())
+  nome      String
+  email     String           @unique
+  senhaHash String
+  fotoUrl   String?
+  ativo     Boolean          @default(true)
+  turmas    TurmaProfessor[]
+}
+
+model Curso {
+  id          String       @id @default(cuid())
+  nome        NomeCurso    @unique
+  corPrimaria String
+  turmas      Turma[]
+  planos      CursoPlano[]
+}
+
+model Turma {
+  id          String           @id @default(cuid())
+  nome        String
+  cursoId     String
+  curso       Curso            @relation(fields: [cursoId], references: [id])
+  diaSemana   String
+  horaInicio  String
+  horaFim     String
+  capacidade  Int              @default(30)
+  ativa       Boolean          @default(true)
+  professores TurmaProfessor[]
+  modulos     Modulo[]
+  matriculas  MatriculaCurso[]
+}
+
+model TurmaProfessor {
+  id          String    @id @default(cuid())
+  turmaId     String
+  turma       Turma     @relation(fields: [turmaId], references: [id], onDelete: Cascade)
+  professorId String
+  professor   Professor @relation(fields: [professorId], references: [id])
+  materia     String?
+  horaInicio  String?
+  horaFim     String?
+  ordem       Int?
+
+  @@unique([turmaId, professorId, materia])
+}
+
+model Modulo {
+  id            String   @id @default(cuid())
+  turmaId       String
+  turma         Turma    @relation(fields: [turmaId], references: [id], onDelete: Cascade)
+  numero        Int
+  mesReferencia DateTime
+  aulas         Aula[]
+
+  @@unique([turmaId, numero])
+}
+
+model Aula {
+  id              String           @id @default(cuid())
+  moduloId        String
+  modulo          Modulo           @relation(fields: [moduloId], references: [id], onDelete: Cascade)
+  data            DateTime
+  numero          Int
+  conteudo        String?
+  frequencias     Frequencia[]
+  entregasRedacao EntregaRedacao[]
+
+  @@unique([moduloId, numero])
+}
+
+model Aluno {
+  id              String                   @id @default(cuid())
+  codigo          String                   @unique
+  nome            String
+  dataNascimento  DateTime?
+  senhaHash       String
+  fotoUrl         String?
+  ativo           Boolean                  @default(true)
+  responsaveis    AlunoResponsavel[]
+  matriculas      MatriculaCurso[]
+  acessosExternos AcessoExterno[]
+  frequencias     Frequencia[]
+  entregasRedacao EntregaRedacao[]
+  solicitacoes    SolicitacaoRematricula[]
+}
+
+model Responsavel {
+  id        String             @id @default(cuid())
+  nome      String
+  telefone  String?
+  senhaHash String
+  fotoUrl   String?
+  filhos    AlunoResponsavel[]
+}
+
+model AlunoResponsavel {
+  id            String      @id @default(cuid())
+  alunoId       String
+  aluno         Aluno       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  responsavelId String
+  responsavel   Responsavel @relation(fields: [responsavelId], references: [id], onDelete: Cascade)
+  parentesco    String?
+
+  @@unique([alunoId, responsavelId])
+}
+
+model Plano {
+  id                 String           @id @default(cuid())
+  nome               String           @unique
+  duracaoMeses       Int
+  percentualDesconto Int              @default(0)
+  ativo              Boolean          @default(true)
+  cursos             CursoPlano[]
+  matriculas         MatriculaCurso[]
+}
+
+model CursoPlano {
+  id      String  @id @default(cuid())
+  cursoId String
+  curso   Curso   @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  planoId String
+  plano   Plano   @relation(fields: [planoId], references: [id])
+  valor   Decimal @db.Decimal(10, 2)
+
+  @@unique([cursoId, planoId])
+}
+
+model MatriculaCurso {
+  id         String          @id @default(cuid())
+  alunoId    String
+  aluno      Aluno           @relation(fields: [alunoId], references: [id])
+  turmaId    String
+  turma      Turma           @relation(fields: [turmaId], references: [id])
+  planoId    String
+  plano      Plano           @relation(fields: [planoId], references: [id])
+  status     StatusMatricula @default(ATIVA)
+  dataInicio DateTime        @default(now())
+  dataFim    DateTime?
+  pagamentos Pagamento[]
+}
+
+model Pagamento {
+  id               String          @id @default(cuid())
+  matriculaCursoId String
+  matriculaCurso   MatriculaCurso  @relation(fields: [matriculaCursoId], references: [id], onDelete: Cascade)
+  competencia      String
+  valor            Decimal         @db.Decimal(10, 2)
+  formaPagamento   String?
+  status           StatusPagamento @default(PENDENTE)
+  dataPagamento    DateTime?
+  confirmadoPorId  String?
+  observacao       String?
+}
+
+model Frequencia {
+  id               String    @id @default(cuid())
+  aulaId           String
+  aula             Aula      @relation(fields: [aulaId], references: [id], onDelete: Cascade)
+  alunoId          String
+  aluno            Aluno     @relation(fields: [alunoId], references: [id])
+  status           String
+  reposicaoData    DateTime?
+  reposicaoTurmaId String?
+
+  @@unique([aulaId, alunoId])
+}
+
+model EntregaRedacao {
+  id                 String            @id @default(cuid())
+  aulaId             String
+  aula               Aula              @relation(fields: [aulaId], references: [id], onDelete: Cascade)
+  alunoId            String
+  aluno              Aluno             @relation(fields: [alunoId], references: [id])
+  quantidadeEntregue Int               @default(0)
+  status             String            @default("AGUARDANDO_APROVACAO")
+  correcoes          CorrecaoRedacao[]
+
+  @@unique([aulaId, alunoId])
+}
+
+model CorrecaoRedacao {
+  id         String         @id @default(cuid())
+  entregaId  String
+  entrega    EntregaRedacao @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+  numero     Int
+  nota       Decimal?       @db.Decimal(5, 2)
+  comentario String?
+}
+
+model AcessoExterno {
+  id         String @id @default(cuid())
+  alunoId    String
+  aluno      Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  plataforma String
+  urlAcesso  String
+  email      String
+  senha      String
+}
+
+model SolicitacaoRematricula {
+  id              String            @id @default(cuid())
+  alunoId         String
+  aluno           Aluno             @relation(fields: [alunoId], references: [id])
+  turmaId         String
+  planoId         String
+  status          StatusSolicitacao @default(PENDENTE)
+  dataSolicitacao DateTime          @default(now())
+  respondidoPorId String?
+  observacao      String?
+}
+
+model Aviso {
+  id          String       @id @default(cuid())
+  titulo      String
+  mensagem    String
+  publicoAlvo PublicoAviso
+  cursoId     String?
+  turmaId     String?
+  alunoId     String?
+  enviarPush  Boolean      @default(true)
+  criadoPorId String
+  criadoEm    DateTime     @default(now())
+}
+
+model LogAuditoria {
+  id         String       @id @default(cuid())
+  usuarioId  String
+  papel      PapelUsuario
+  acao       String
+  entidade   String
+  entidadeId String?
+  detalhes   String?
+  timestamp  DateTime     @default(now())
+  ip         String?
+}
+
+model SequenciaCodigo {
+  id    String @id @default("aluno")
+  ano   Int
+  valor Int    @default(0)
+}

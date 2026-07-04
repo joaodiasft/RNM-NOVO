@@ -1,0 +1,35 @@
+# Variáveis de ambiente — Cloudflare Pages
+# Cole TODAS em: Pages → seu projeto → Settings → Environment variables
+# Marque Production e Preview
+
+# === OBRIGATÓRIAS ===
+DATABASE_URL=
+AUTH_SECRET=
+ENCRYPTION_KEY=
+NEXTAUTH_URL=https://SEU-PROJETO.pages.dev
+
+GOOGLE_SERVICE_ACCOUNT_EMAIL=
+GOOGLE_PRIVATE_KEY=
+GOOGLE_PROJECT_ID=
+GOOGLE_DRIVE_FOLDER_ID=
+GOOGLE_SHEETS_SPREADSHEET_ID=
+GOOGLE_SHEETS_LOG_SHEET=Logs
+
+METODO_ENVIO_EMAIL=RESEND
+RESEND_API_KEY=
+RESEND_REMETENTE=onboarding@resend.dev
+TOKEN_MINUTOS_EXPIRACAO=5
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USUARIO=
+SMTP_SENHA_APP=
+
+ADMIN_EMAIL=
+ADMIN_NOME=Administrador
+ADMIN_SENHA_INICIAL=Admin@2026
+
+# === DICAS ===
+# 1. NEXTAUTH_URL = URL exata do site (sem barra no final)
+# 2. GOOGLE_PRIVATE_KEY = cole a chave inteira; Cloudflare aceita quebras de linha reais
+# 3. Após o primeiro deploy, atualize NEXTAUTH_URL se usar domínio customizado
