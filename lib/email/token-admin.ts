@@ -110,7 +110,9 @@ export async function gerarEEnviarToken(
 
   const metodoPreferido = (
     process.env.METODO_ENVIO_EMAIL || "RESEND"
-  ).toUpperCase();
+  )
+    .trim()
+    .toUpperCase();
 
   let enviado = false;
   let metodo: "RESEND" | "SMTP" | undefined;

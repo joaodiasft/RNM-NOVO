@@ -7,6 +7,7 @@ import {
   TOKEN_REENVIO_SEGUNDOS,
 } from "@/lib/email/token-admin";
 import { verificarSenha } from "@/lib/crypto";
+import { criarTicketAdmin } from "@/lib/auth/admin-ticket";
 import { registrarLog } from "@/lib/logging/sheets";
 
 const ADMIN_SESSION_SECRET = new TextEncoder().encode(
@@ -143,8 +144,6 @@ export async function validarTokenAdmin(pendingToken: string, codigo: string) {
       email: token.admin.email,
       papel: "ADMIN" as const,
     },
-    ticket: (await import("@/lib/auth/admin-ticket")).criarTicketAdmin(
-      token.admin.id
-    ),
+    ticket: await criarTicketAdmin(token.admin.id),
   };
 }
