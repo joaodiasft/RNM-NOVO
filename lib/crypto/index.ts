@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 
-const SALT_ROUNDS = 12;
+const SALT_ROUNDS = 8;
 
 export async function hashSenha(senha: string): Promise<string> {
   return bcrypt.hash(senha, SALT_ROUNDS);

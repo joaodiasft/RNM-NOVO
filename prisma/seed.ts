@@ -13,7 +13,7 @@ async function main() {
 
   await prisma.admin.upsert({
     where: { email: adminEmail },
-    update: {},
+    update: { senhaHash: await hashSenha(adminSenha) },
     create: {
       nome: adminNome,
       email: adminEmail,
@@ -100,7 +100,7 @@ async function main() {
   for (const p of professores) {
     await prisma.professor.upsert({
       where: { email: p.email },
-      update: {},
+      update: { senhaHash: senhaProf },
       create: { ...p, senhaHash: senhaProf },
     });
   }
