@@ -16,7 +16,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "pages:build": "prisma generate && opennextjs-cloudflare build",
+    "pages:build": "prisma generate && opennextjs-cloudflare build && node scripts/cleanup-next-cache.mjs",
+    "pages:deploy": "opennextjs-cloudflare deploy",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"

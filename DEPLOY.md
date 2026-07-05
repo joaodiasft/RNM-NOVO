@@ -25,26 +25,37 @@ Substitua `SEU-USUARIO` pelo seu usuário GitHub.
 
 ---
 
-## Parte B — Cloudflare Workers (10 min)
+## Parte B — Cloudflare Workers (NÃO use Pages)
 
-> O projeto usa **OpenNext** (`@opennextjs/cloudflare`), não mais `@cloudflare/next-on-pages`.
-> Isso permite Prisma, Google APIs, bcrypt e nodemailer no runtime Node.js do Workers.
+> **Importante:** este app usa SSR (Prisma, APIs). Deve ser deployado como **Worker**, não como **Pages** com diretório de saída.
+>
+> Se você vir o erro *"Pages só suporta arquivos de até 25 MiB"* com `.next/cache/...pack`, o projeto está configurado como **Pages** com **Build output directory** preenchido. Isso está errado — veja a seção de correção abaixo.
 
 ### 1. Conectar ao Git
 1. [https://dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages**
-2. **Create** → **Workers** → **Connect to Git** (ou edite o projeto Pages existente)
-3. Autorize GitHub e selecione `RNM-NOVO` (ou `redacao-nota-mil`)
+2. **Create** → **Workers** → **Connect to Git**
+3. Autorize GitHub e selecione `RNM-NOVO`
 
-### 2. Configuração de build
+### 2. Configuração de build (Workers Builds)
 
 | Campo | Valor |
 |---|---|
 | Production branch | `main` |
-| Build command | `npm run pages:build` |
-| Deploy command | `npx opennextjs-cloudflare deploy` |
+| **Build command** | `npm run pages:build` |
+| **Deploy command** | `npx opennextjs-cloudflare deploy` |
+| **Build output directory** | **deixe VAZIO** (não preencha) |
 | Node.js version | `20` |
 
-**Não** use `.vercel/output/static` — o output fica em `.open-next/` (gerenciado pelo Wrangler).
+O deploy usa `wrangler.toml` → `.open-next/worker.js` + `.open-next/assets`. O Wrangler faz o upload; não há pasta de saída manual.
+
+### Corrigir erro "25 MiB" / `.next/cache`
+
+Se o projeto foi criado como **Pages**:
+
+1. **Workers & Pages** → seu projeto → **Settings** → **Build**
+2. **Apague** o valor de **Build output directory** (`.vercel/output/static`, `.open-next`, `.` etc.)
+3. Adicione **Deploy command**: `npx opennextjs-cloudflare deploy`
+4. Se não existir campo "Deploy command", o projeto é **Pages** — crie um **novo Worker** conectado ao mesmo repo e delete o Pages antigo
 
 Clique **Environment variables** e adicione **todas** as variáveis do seu `.env` local.
 
@@ -84,6 +95,7 @@ Depois atualize `NEXTAUTH_URL` e `RESEND_REMETENTE` (quando tiver domínio verif
 
 | Erro | Solução |
 |---|---|
+| `Pages só suporta arquivos de até 25 MiB` + `.next/cache` | Projeto está como **Pages** com output directory — remova o campo ou crie **Worker** novo (ver Parte B) |
 | `npx vercel build` falhou | Projeto migrado para OpenNext — atualize o repo e use `npm run pages:build` |
 | Build falha no Prisma | Confirme `DATABASE_URL` nas env vars do Cloudflare |
 | Login redireciona errado | `NEXTAUTH_URL` deve ser a URL pública exata |

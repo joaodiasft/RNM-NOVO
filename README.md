@@ -10,7 +10,7 @@ Plataforma web para gestão de cursos (Redação, Exatas, Matemática) com 4 per
 - Google Drive (fotos de perfil)
 - Google Sheets (logs completos)
 - Resend + Gmail SMTP (token admin)
-- Deploy: Cloudflare Pages
+- Deploy: Cloudflare Workers (OpenNext)
 
 ## Configuração
 
@@ -26,17 +26,17 @@ Siga o guia completo em [SETUP.md](./SETUP.md).
 - **Admin:** e-mail e senha definidos em `ADMIN_EMAIL` / `ADMIN_SENHA_INICIAL`
 - **Professores:** `*@redacaonota1000.com.br` / `Prof@2026`
 
-## Deploy Cloudflare Pages
+## Deploy Cloudflare Workers
 
-```bash
-npm run pages:build
-```
+Guia completo: [DEPLOY.md](./DEPLOY.md)
+
+| Campo no Cloudflare | Valor |
+|---|---|
+| Build command | `npm run pages:build` |
+| Deploy command | `npx opennextjs-cloudflare deploy` |
+| Build output directory | **vazio** |
 
 Configure todas as variáveis de ambiente no painel Cloudflare (ver SETUP.md).
-
-Build settings:
-- Build command: `npm run pages:build`
-- Output directory: `.vercel/output/static`
 
 ## Referências
 
