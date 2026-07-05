@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { NextResponse } from "next/server";
 import { requireApiAuth, handleApiError } from "@/lib/api-helpers";
 import { criarAluno, criarResponsavel, criarMatricula } from "@/lib/services/usuarios";

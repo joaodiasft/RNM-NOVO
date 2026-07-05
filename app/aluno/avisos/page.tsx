@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
