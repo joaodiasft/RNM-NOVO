@@ -25,12 +25,15 @@ Substitua `SEU-USUARIO` pelo seu usuário GitHub.
 
 ---
 
-## Parte B — Cloudflare Pages (10 min)
+## Parte B — Cloudflare Workers (10 min)
+
+> O projeto usa **OpenNext** (`@opennextjs/cloudflare`), não mais `@cloudflare/next-on-pages`.
+> Isso permite Prisma, Google APIs, bcrypt e nodemailer no runtime Node.js do Workers.
 
 ### 1. Conectar ao Git
 1. [https://dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages**
-2. **Create** → **Pages** → **Connect to Git**
-3. Autorize GitHub e selecione `redacao-nota-mil`
+2. **Create** → **Workers** → **Connect to Git** (ou edite o projeto Pages existente)
+3. Autorize GitHub e selecione `RNM-NOVO` (ou `redacao-nota-mil`)
 
 ### 2. Configuração de build
 
@@ -38,17 +41,20 @@ Substitua `SEU-USUARIO` pelo seu usuário GitHub.
 |---|---|
 | Production branch | `main` |
 | Build command | `npm run pages:build` |
-| Build output directory | `.vercel/output/static` |
+| Deploy command | `npx opennextjs-cloudflare deploy` |
+| Node.js version | `20` |
 
-Clique **Environment variables (advanced)** e adicione **todas** as variáveis do seu `.env` local.
+**Não** use `.vercel/output/static` — o output fica em `.open-next/` (gerenciado pelo Wrangler).
+
+Clique **Environment variables** e adicione **todas** as variáveis do seu `.env` local.
 
 Use o arquivo [cloudflare-env-checklist.txt](./cloudflare-env-checklist.txt) como lista de verificação.
 
 **Importante para o primeiro deploy:**
 ```env
-NEXTAUTH_URL=https://redacao-nota-mil.pages.dev
+NEXTAUTH_URL=https://redacao-nota-mil.SEU-SUBDOMINIO.workers.dev
 ```
-(Ajuste para o nome real que o Cloudflare gerar — ex.: `redacao-nota-mil-abc.pages.dev`)
+(Ajuste para a URL real que o Cloudflare gerar)
 
 ### 3. Deploy
 Clique **Save and Deploy** e aguarde o build (5–10 min).
@@ -58,8 +64,8 @@ Clique **Save and Deploy** e aguarde o build (5–10 min).
 ## Parte C — Após o deploy
 
 ### 1. Atualizar NEXTAUTH_URL
-1. Copie a URL final do site (ex.: `https://redacao-nota-mil.pages.dev`)
-2. Pages → **Settings** → **Environment variables**
+1. Copie a URL final do site (ex.: `https://redacao-nota-mil.workers.dev`)
+2. Worker → **Settings** → **Variables and Secrets**
 3. Edite `NEXTAUTH_URL` com a URL exata
 4. **Redeploy** (Deployments → Retry deployment)
 
@@ -69,7 +75,7 @@ Clique **Save and Deploy** e aguarde o build (5–10 min).
 - [ ] Log aparece no Google Sheets ao fazer login
 
 ### 3. Domínio customizado (opcional)
-Pages → **Custom domains** → adicionar ex.: `app.redacaonota1000.com.br`
+Worker → **Settings** → **Domains & Routes** → adicionar ex.: `app.redacaonota1000.com.br`
 Depois atualize `NEXTAUTH_URL` e `RESEND_REMETENTE` (quando tiver domínio verificado na Resend).
 
 ---
@@ -78,6 +84,7 @@ Depois atualize `NEXTAUTH_URL` e `RESEND_REMETENTE` (quando tiver domínio verif
 
 | Erro | Solução |
 |---|---|
+| `npx vercel build` falhou | Projeto migrado para OpenNext — atualize o repo e use `npm run pages:build` |
 | Build falha no Prisma | Confirme `DATABASE_URL` nas env vars do Cloudflare |
 | Login redireciona errado | `NEXTAUTH_URL` deve ser a URL pública exata |
 | Token admin não chega | Resend `onboarding@resend.dev` só envia para e-mail da conta Resend |

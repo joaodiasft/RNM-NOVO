@@ -1,7 +1,9 @@
+"$schema" = "./node_modules/wrangler/config-schema.json"
 name = "redacao-nota-mil"
+main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
-compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".vercel/output/static"
+compatibility_flags = [ "nodejs_compat" ]
 
-[vars]
-# Configure secrets in Cloudflare Dashboard → Settings → Environment variables
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"

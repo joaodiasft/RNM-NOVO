@@ -1,5 +1,3 @@
-export const runtime = "edge";
-
 import { NextResponse } from "next/server";
 import { requireApiAuth, handleApiError } from "@/lib/api-helpers";
 import { lancarFrequencia } from "@/lib/services/academico";
