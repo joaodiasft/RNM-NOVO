@@ -1,19 +1,6 @@
-import { google } from "googleapis";
-import { Readable } from "stream";
+import { getGoogleAccessToken } from "@/lib/google-auth";
 
-function getDriveClient() {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  if (!email || !privateKey) return null;
-
-  const auth = new google.auth.JWT({
-    email,
-    key: privateKey,
-    scopes: ["https://www.googleapis.com/auth/drive.file"],
-  });
-
-  return google.drive({ version: "v3", auth });
-}
+const DRIVE_SCOPE = ["https://www.googleapis.com/auth/drive.file"];
 
 export interface UploadResult {
   fileId: string;
@@ -27,49 +14,85 @@ export async function uploadFotoPerfil(
   userId: string
 ): Promise<UploadResult | null> {
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-  const drive = getDriveClient();
-  if (!folderId || !drive) {
+  if (!folderId) {
     console.warn("[Drive] Configuração ausente — upload ignorado");
+    return null;
+  }
+
+  const token = await getGoogleAccessToken(DRIVE_SCOPE);
+  if (!token) {
+    console.warn("[Drive] Token Google indisponível — upload ignorado");
     return null;
   }
 
   const ext = mimeType.includes("png") ? "png" : "jpg";
   const fileName = `${tipoUsuario}-${userId}-${Date.now()}.${ext}`;
 
-  const response = await drive.files.create({
-    requestBody: {
-      name: fileName,
-      parents: [folderId],
-      mimeType,
-    },
-    media: {
-      mimeType,
-      body: Readable.from(buffer),
-    },
-    fields: "id, webViewLink, webContentLink",
+  const metadata = JSON.stringify({
+    name: fileName,
+    parents: [folderId],
+    mimeType,
   });
 
-  const fileId = response.data.id;
+  const boundary = `-------rnm${Date.now()}`;
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`),
+    Buffer.from(`--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`),
+    buffer,
+    Buffer.from(`\r\n--${boundary}--`),
+  ]);
+
+  const createRes = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,webContentLink",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    }
+  );
+
+  if (!createRes.ok) {
+    console.error("[Drive] Upload falhou:", await createRes.text());
+    return null;
+  }
+
+  const file = (await createRes.json()) as {
+    id?: string;
+    webViewLink?: string;
+    webContentLink?: string;
+  };
+
+  const fileId = file.id;
   if (!fileId) return null;
 
-  await drive.permissions.create({
-    fileId,
-    requestBody: { role: "reader", type: "anyone" },
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ role: "reader", type: "anyone" }),
   });
 
   return {
     fileId,
-    url:
-      response.data.webViewLink ||
-      `https://drive.google.com/uc?id=${fileId}`,
+    url: file.webViewLink || `https://drive.google.com/uc?id=${fileId}`,
   };
 }
 
 export async function deletarArquivoDrive(fileId: string): Promise<void> {
-  const drive = getDriveClient();
-  if (!drive || !fileId) return;
+  if (!fileId) return;
+  const token = await getGoogleAccessToken(DRIVE_SCOPE);
+  if (!token) return;
+
   try {
-    await drive.files.delete({ fileId });
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
   } catch {
     // ignore
   }
