@@ -44,3 +44,6 @@ prisma/*.db
 .wrangler/
 .dev.vars
 .open-next/
+
+# claude local
+.claude/settings.local.json

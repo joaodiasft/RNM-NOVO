@@ -1,23 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { DashboardShell, Card } from "@/components/DashboardShell";
-import { ADMIN_COR } from "@/lib/utils/index";
+import { DashboardShell, Card, EmptyState } from "@/components/DashboardShell";
+import { CursoBadge } from "@/components/ui/CursoBadge";
 import { FormFrequencia } from "@/components/forms/FormFrequencia";
-
-const nav = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/usuarios", label: "Usuários" },
-  { href: "/admin/academico", label: "Acadêmico" },
-  { href: "/admin/matriculas", label: "Matrículas" },
-  { href: "/admin/frequencia", label: "Frequência" },
-  { href: "/admin/redacao", label: "Redação" },
-  { href: "/admin/financeiro", label: "Financeiro" },
-  { href: "/admin/acessos", label: "Acessos Externos" },
-  { href: "/admin/avisos", label: "Avisos" },
-  { href: "/admin/relatorios", label: "Relatórios" },
-  { href: "/admin/configuracoes", label: "Configurações" },
-];
 
 export default async function FrequenciaAdminPage() {
   const session = await auth();
@@ -29,7 +15,9 @@ export default async function FrequenciaAdminPage() {
       modulos: {
         orderBy: { numero: "desc" },
         take: 1,
-        include: { aulas: { orderBy: { numero: "asc" } } },
+        include: {
+          aulas: { orderBy: { numero: "asc" }, include: { frequencias: true } },
+        },
       },
       matriculas: {
         where: { status: "ATIVA" },
@@ -40,33 +28,56 @@ export default async function FrequenciaAdminPage() {
   });
 
   return (
-    <DashboardShell titulo="Frequência" corAccent={ADMIN_COR} userName={session.user.nome} papel="ADMIN" navItems={nav}>
-      <div className="space-y-6">
-        {turmas.map((t) => {
-          const modulo = t.modulos[0];
-          const alunos = t.matriculas.map((m) => m.aluno);
-          return (
-            <Card key={t.id} title={`${t.nome} — ${t.curso.nome}`}>
-              {!modulo ? (
-                <p className="text-sm text-gray-500">Sem módulo ativo.</p>
-              ) : (
-                modulo.aulas.map((aula) => (
-                  <div key={aula.id} className="mb-4">
-                    <p className="text-sm font-medium mb-2">
-                      Aula {aula.numero} — {new Date(aula.data).toLocaleDateString("pt-BR")}
-                    </p>
-                    <FormFrequencia
-                      aulaId={aula.id}
-                      alunos={alunos}
-                      cursoRedacao={t.curso.nome === "REDACAO"}
-                    />
-                  </div>
-                ))
-              )}
-            </Card>
-          );
-        })}
-      </div>
+    <DashboardShell titulo="Frequência" userName={session.user.nome} papel="ADMIN">
+      {turmas.length === 0 ? (
+        <Card>
+          <EmptyState
+            icone="check-circle"
+            titulo="Nenhuma turma cadastrada"
+            descricao="Crie turmas e gere módulos em Acadêmico para lançar frequência."
+          />
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {turmas.map((t) => {
+            const modulo = t.modulos[0];
+            const alunos = t.matriculas.map((m) => m.aluno);
+            return (
+              <Card
+                key={t.id}
+                title={`Turma ${t.nome}`}
+                acao={<CursoBadge curso={t.curso.nome} />}
+              >
+                {!modulo ? (
+                  <p className="text-sm text-gray-500">
+                    Sem módulo ativo. Gere o módulo do mês em <strong>Acadêmico</strong>.
+                  </p>
+                ) : (
+                  modulo.aulas.map((aula) => {
+                    const iniciais = Object.fromEntries(
+                      aula.frequencias.map((f) => [f.alunoId, f.status])
+                    );
+                    return (
+                      <div key={aula.id} className="mb-5 last:mb-0">
+                        <p className="mb-2 text-sm font-semibold text-gray-800">
+                          Aula {aula.numero} —{" "}
+                          {new Date(aula.data).toLocaleDateString("pt-BR")}
+                        </p>
+                        <FormFrequencia
+                          aulaId={aula.id}
+                          alunos={alunos}
+                          cursoRedacao={t.curso.nome === "REDACAO"}
+                          iniciais={iniciais}
+                        />
+                      </div>
+                    );
+                  })
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </DashboardShell>
   );
 }

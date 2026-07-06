@@ -110,6 +110,19 @@ export async function solicitarRematricula(data: {
   usuarioId: string;
   papel: PapelUsuario;
 }) {
+  const turma = await prisma.turma.findUnique({ where: { id: data.turmaId } });
+  if (!turma || !turma.ativa) throw new Error("Turma indisponível");
+
+  const plano = await prisma.plano.findUnique({ where: { id: data.planoId } });
+  if (!plano || !plano.ativo) throw new Error("Plano indisponível");
+
+  const pendente = await prisma.solicitacaoRematricula.findFirst({
+    where: { alunoId: data.alunoId, turmaId: data.turmaId, status: "PENDENTE" },
+  });
+  if (pendente) {
+    throw new Error("Já existe uma solicitação pendente para esta turma");
+  }
+
   const solicitacao = await prisma.solicitacaoRematricula.create({
     data: {
       alunoId: data.alunoId,

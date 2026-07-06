@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { signIn } from "@/lib/auth";
 import { AuthError } from "next-auth";
+import { loginSchema, validar } from "@/lib/validacao";
 
 const rotas: Record<string, string> = {
   ADMIN: "/admin",
@@ -18,14 +19,17 @@ function mensagemErro(result: unknown): string | null {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const perfil = body.perfil as string;
-    const identificador = body.identificador as string;
-    const senha = (body.ticket as string) || (body.senha as string);
-
-    if (!perfil || !identificador || !senha) {
-      return NextResponse.json({ erro: "Dados incompletos" }, { status: 400 });
+    const bruto = await request.json().catch(() => null);
+    // O ADMIN envia `ticket` (JWT de 2 min) no lugar da senha
+    const body = validar(loginSchema, {
+      perfil: bruto?.perfil,
+      identificador: bruto?.identificador,
+      senha: bruto?.ticket || bruto?.senha,
+    });
+    if (body.erro !== null) {
+      return NextResponse.json({ erro: body.erro }, { status: 400 });
     }
+    const { perfil, identificador, senha } = body.data;
 
     const destino = rotas[perfil] || "/";
 

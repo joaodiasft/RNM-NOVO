@@ -3,6 +3,7 @@ import { requireApiAuth, handleApiError } from "@/lib/api-helpers";
 import { criarAluno, criarResponsavel, criarMatricula } from "@/lib/services/usuarios";
 import { prisma } from "@/lib/prisma";
 import { hashSenha } from "@/lib/crypto";
+import { novoAlunoSchema, alunoPatchSchema, validar } from "@/lib/validacao";
 
 export async function GET() {
   const { error } = await requireApiAuth(["ADMIN"]);
@@ -14,6 +15,7 @@ export async function GET() {
       responsaveis: { include: { responsavel: true } },
     },
     orderBy: { nome: "asc" },
+    take: 1000,
   });
   return NextResponse.json(alunos);
 }
@@ -23,32 +25,38 @@ export async function POST(request: Request) {
   if (error) return error;
 
   try {
-    const body = await request.json();
+    const bruto = await request.json().catch(() => null);
+    const body = validar(novoAlunoSchema, bruto);
+    if (body.erro !== null) {
+      return NextResponse.json({ erro: body.erro }, { status: 400 });
+    }
+    const dados = body.data;
+
     const aluno = await criarAluno({
-      nome: body.nome,
-      senha: body.senha,
-      dataNascimento: body.dataNascimento,
+      nome: dados.nome,
+      senha: dados.senha,
+      dataNascimento: dados.dataNascimento,
       usuarioId: session!.user.id,
       papel: session!.user.papel,
     });
 
     let responsavelInfo = null;
-    if (body.responsavel?.nome) {
+    if (dados.responsavel?.nome) {
       responsavelInfo = await criarResponsavel({
-        nome: body.responsavel.nome,
-        telefone: body.responsavel.telefone,
+        nome: dados.responsavel.nome,
+        telefone: dados.responsavel.telefone || undefined,
         alunoId: aluno.id,
-        parentesco: body.responsavel.parentesco,
+        parentesco: dados.responsavel.parentesco || undefined,
         usuarioId: session!.user.id,
         papel: session!.user.papel,
       });
     }
 
-    if (body.turmaId && body.planoId) {
+    if (dados.turmaId && dados.planoId) {
       await criarMatricula({
         alunoId: aluno.id,
-        turmaId: body.turmaId,
-        planoId: body.planoId,
+        turmaId: dados.turmaId,
+        planoId: dados.planoId,
         usuarioId: session!.user.id,
         papel: session!.user.papel,
       });
@@ -67,16 +75,26 @@ export async function PATCH(request: Request) {
   const { error } = await requireApiAuth(["ADMIN"]);
   if (error) return error;
 
-  const body = await request.json();
-  const data: Record<string, unknown> = {};
-  if (body.nome) data.nome = body.nome;
-  if (body.ativo !== undefined) data.ativo = body.ativo;
-  if (body.senha) data.senhaHash = await hashSenha(body.senha);
-  if (body.fotoUrl) data.fotoUrl = body.fotoUrl;
+  try {
+    const bruto = await request.json().catch(() => null);
+    const body = validar(alunoPatchSchema, bruto);
+    if (body.erro !== null) {
+      return NextResponse.json({ erro: body.erro }, { status: 400 });
+    }
+    const dados = body.data;
 
-  const aluno = await prisma.aluno.update({
-    where: { id: body.id },
-    data,
-  });
-  return NextResponse.json(aluno);
+    const data: Record<string, unknown> = {};
+    if (dados.nome) data.nome = dados.nome;
+    if (dados.ativo !== undefined) data.ativo = dados.ativo;
+    if (dados.senha) data.senhaHash = await hashSenha(dados.senha);
+    if (dados.fotoUrl) data.fotoUrl = dados.fotoUrl;
+
+    const aluno = await prisma.aluno.update({
+      where: { id: dados.id },
+      data,
+    });
+    return NextResponse.json(aluno);
+  } catch (err) {
+    return handleApiError(err);
+  }
 }

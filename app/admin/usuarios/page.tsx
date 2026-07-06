@@ -1,23 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { DashboardShell, Card } from "@/components/DashboardShell";
-import { ADMIN_COR } from "@/lib/utils/index";
+import { DashboardShell, Card, Badge, EmptyState } from "@/components/DashboardShell";
 import { FormNovoAluno } from "@/components/forms/FormNovoAluno";
-
-const nav = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/usuarios", label: "Usuários" },
-  { href: "/admin/academico", label: "Acadêmico" },
-  { href: "/admin/matriculas", label: "Matrículas" },
-  { href: "/admin/frequencia", label: "Frequência" },
-  { href: "/admin/redacao", label: "Redação" },
-  { href: "/admin/financeiro", label: "Financeiro" },
-  { href: "/admin/acessos", label: "Acessos Externos" },
-  { href: "/admin/avisos", label: "Avisos" },
-  { href: "/admin/relatorios", label: "Relatórios" },
-  { href: "/admin/configuracoes", label: "Configurações" },
-];
 
 export default async function UsuariosPage() {
   const session = await auth();
@@ -37,39 +22,67 @@ export default async function UsuariosPage() {
   ]);
 
   return (
-    <DashboardShell
-      titulo="Gestão de Usuários"
-      corAccent={ADMIN_COR}
-      userName={session.user.nome}
-      papel="ADMIN"
-      navItems={nav}
-    >
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Card title="Novo aluno">
+    <DashboardShell titulo="Gestão de Usuários" userName={session.user.nome} papel="ADMIN">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Novo aluno" descricao="Gera código de matrícula automaticamente">
           <FormNovoAluno turmas={turmas} planos={planos} />
         </Card>
         <Card title={`Alunos (${alunos.length})`}>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {alunos.map((a) => (
-              <div key={a.id} className="border-b border-gray-100 pb-2">
-                <p className="font-medium">{a.nome}</p>
-                <p className="text-xs text-gray-500">
-                  {a.codigo} · {a.matriculas.map((m) => m.turma.nome).join(", ") || "Sem turma"}
-                </p>
-              </div>
-            ))}
-          </div>
+          {alunos.length === 0 ? (
+            <EmptyState icone="users" titulo="Nenhum aluno cadastrado" />
+          ) : (
+            <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
+              {alunos.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-gray-100 px-3.5 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-gray-900">{a.nome}</p>
+                    <p className="truncate text-xs text-gray-500">
+                      {a.codigo} ·{" "}
+                      {a.matriculas.map((m) => m.turma.nome).join(", ") || "Sem turma"}
+                      {a.responsaveis.length > 0 &&
+                        ` · Resp.: ${a.responsaveis
+                          .map((r) => r.responsavel.nome)
+                          .join(", ")}`}
+                    </p>
+                  </div>
+                  <Badge tom={a.ativo ? "green" : "gray"}>
+                    {a.ativo ? "Ativo" : "Inativo"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
-      <Card title={`Professores (${professores.length})`} className="mt-6">
-        <ul className="grid sm:grid-cols-2 gap-2">
-          {professores.map((p) => (
-            <li key={p.id} className="text-sm">
-              <span className="font-medium">{p.nome}</span>
-              <span className="text-gray-500"> — {p.email}</span>
-            </li>
-          ))}
-        </ul>
+
+      <Card title={`Professores (${professores.length})`} className="mt-4">
+        {professores.length === 0 ? (
+          <EmptyState
+            icone="book"
+            titulo="Nenhum professor cadastrado"
+            descricao="Cadastre professores em Acadêmico."
+          />
+        ) : (
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {professores.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between gap-2 rounded-xl border border-gray-100 px-3.5 py-2.5 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-gray-900">{p.nome}</p>
+                  <p className="truncate text-xs text-gray-500">{p.email}</p>
+                </div>
+                <Badge tom={p.ativo ? "green" : "gray"}>
+                  {p.ativo ? "Ativo" : "Inativo"}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
     </DashboardShell>
   );

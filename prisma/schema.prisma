@@ -64,6 +64,8 @@ model TokenAdmin {
   expiraEm   DateTime
   usado      Boolean  @default(false)
   tentativas Int      @default(0)
+
+  @@index([adminId, usado, criadoEm])
 }
 
 model Professor {
@@ -111,6 +113,7 @@ model TurmaProfessor {
   ordem       Int?
 
   @@unique([turmaId, professorId, materia])
+  @@index([professorId])
 }
 
 model Modulo {
@@ -206,6 +209,9 @@ model MatriculaCurso {
   dataInicio DateTime        @default(now())
   dataFim    DateTime?
   pagamentos Pagamento[]
+
+  @@index([alunoId, status])
+  @@index([turmaId, status])
 }
 
 model Pagamento {
@@ -219,6 +225,9 @@ model Pagamento {
   dataPagamento    DateTime?
   confirmadoPorId  String?
   observacao       String?
+
+  @@index([matriculaCursoId])
+  @@index([status, competencia])
 }
 
 model Frequencia {
@@ -232,6 +241,7 @@ model Frequencia {
   reposicaoTurmaId String?
 
   @@unique([aulaId, alunoId])
+  @@index([alunoId])
 }
 
 model EntregaRedacao {
@@ -245,6 +255,7 @@ model EntregaRedacao {
   correcoes          CorrecaoRedacao[]
 
   @@unique([aulaId, alunoId])
+  @@index([alunoId, status])
 }
 
 model CorrecaoRedacao {
@@ -264,6 +275,8 @@ model AcessoExterno {
   urlAcesso  String
   email      String
   senha      String
+
+  @@index([alunoId])
 }
 
 model SolicitacaoRematricula {
@@ -276,6 +289,9 @@ model SolicitacaoRematricula {
   dataSolicitacao DateTime          @default(now())
   respondidoPorId String?
   observacao      String?
+
+  @@index([status])
+  @@index([alunoId])
 }
 
 model Aviso {
@@ -289,6 +305,8 @@ model Aviso {
   enviarPush  Boolean      @default(true)
   criadoPorId String
   criadoEm    DateTime     @default(now())
+
+  @@index([publicoAlvo, criadoEm])
 }
 
 model LogAuditoria {
@@ -301,6 +319,8 @@ model LogAuditoria {
   detalhes   String?
   timestamp  DateTime     @default(now())
   ip         String?
+
+  @@index([timestamp])
 }
 
 model SequenciaCodigo {

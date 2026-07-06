@@ -1,23 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { DashboardShell, Card } from "@/components/DashboardShell";
-import { ADMIN_COR } from "@/lib/utils/index";
+import { DashboardShell, Card, EmptyState } from "@/components/DashboardShell";
 import { FormAprovarRedacao } from "@/components/forms/FormAprovarRedacao";
-
-const nav = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/usuarios", label: "Usuários" },
-  { href: "/admin/academico", label: "Acadêmico" },
-  { href: "/admin/matriculas", label: "Matrículas" },
-  { href: "/admin/frequencia", label: "Frequência" },
-  { href: "/admin/redacao", label: "Redação" },
-  { href: "/admin/financeiro", label: "Financeiro" },
-  { href: "/admin/acessos", label: "Acessos Externos" },
-  { href: "/admin/avisos", label: "Avisos" },
-  { href: "/admin/relatorios", label: "Relatórios" },
-  { href: "/admin/configuracoes", label: "Configurações" },
-];
 
 export default async function RedacaoAdminPage() {
   const session = await auth();
@@ -33,10 +18,17 @@ export default async function RedacaoAdminPage() {
   });
 
   return (
-    <DashboardShell titulo="Aprovação de Redações" corAccent={ADMIN_COR} userName={session.user.nome} papel="ADMIN" navItems={nav}>
-      <Card title={`Pendentes (${entregas.length})`}>
+    <DashboardShell titulo="Aprovação de Redações" userName={session.user.nome} papel="ADMIN">
+      <Card
+        title={`Entregas pendentes (${entregas.length})`}
+        descricao="Entregas lançadas pelos alunos aguardando validação"
+      >
         {entregas.length === 0 ? (
-          <p className="text-sm text-gray-500">Nenhuma entrega aguardando aprovação.</p>
+          <EmptyState
+            icone="pencil"
+            titulo="Nenhuma entrega aguardando aprovação"
+            descricao="Quando os alunos lançarem redações, elas aparecem aqui."
+          />
         ) : (
           <FormAprovarRedacao entregas={entregas} />
         )}

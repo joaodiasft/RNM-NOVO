@@ -137,7 +137,20 @@ export const authConfig: NextAuthConfig = {
         );
       }
       if (trigger === "update" && session?.alunoSelecionadoId) {
-        token.alunoSelecionadoId = session.alunoSelecionadoId;
+        // Segurança: só aceita a troca se o aluno realmente for filho
+        // deste responsável — nunca confie no valor vindo do cliente.
+        if (token.papel === "RESPONSAVEL") {
+          const vinculo = await prisma.alunoResponsavel.findFirst({
+            where: {
+              responsavelId: token.id as string,
+              alunoId: session.alunoSelecionadoId as string,
+            },
+            select: { id: true },
+          });
+          if (vinculo) {
+            token.alunoSelecionadoId = session.alunoSelecionadoId;
+          }
+        }
       }
       return token;
     },

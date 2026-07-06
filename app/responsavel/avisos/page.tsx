@@ -1,28 +1,41 @@
-import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { DashboardShell, Card } from "@/components/DashboardShell";
+import { DashboardShell, Card, EmptyState } from "@/components/DashboardShell";
+import { alunoDoResponsavel } from "@/lib/api-helpers";
+import { avisosParaAluno } from "@/lib/services/avisos";
 
 export default async function ResponsavelAvisosPage() {
   const session = await auth();
   if (!session || session.user.papel !== "RESPONSAVEL") redirect("/login");
 
-  const avisos = await prisma.aviso.findMany({
-    where: { publicoAlvo: "TODOS" },
-    orderBy: { criadoEm: "desc" },
-    take: 20,
-  });
+  const alunoId = await alunoDoResponsavel(
+    session.user.id,
+    session.user.alunoSelecionadoId
+  );
+  const avisos = alunoId ? await avisosParaAluno(alunoId) : [];
 
   return (
-    <DashboardShell titulo="Avisos" corAccent="#212529" userName={session.user.nome} papel="RESPONSAVEL" navItems={[
-      { href: "/responsavel", label: "Dashboard" },
-      { href: "/responsavel/avisos", label: "Avisos" },
-    ]}>
-      {avisos.map((a) => (
-        <Card key={a.id} title={a.titulo} className="mb-4">
-          <p className="text-sm">{a.mensagem}</p>
+    <DashboardShell titulo="Avisos" userName={session.user.nome} papel="RESPONSAVEL">
+      {avisos.length === 0 ? (
+        <Card>
+          <EmptyState
+            icone="bell"
+            titulo="Nenhum aviso por enquanto"
+            descricao="Os comunicados da escola sobre o seu filho aparecem aqui."
+          />
         </Card>
-      ))}
+      ) : (
+        <div className="space-y-3">
+          {avisos.map((a) => (
+            <Card key={a.id} title={a.titulo}>
+              <p className="text-sm text-gray-700">{a.mensagem}</p>
+              <p className="mt-2 text-xs text-gray-400">
+                {new Date(a.criadoEm).toLocaleDateString("pt-BR")}
+              </p>
+            </Card>
+          ))}
+        </div>
+      )}
     </DashboardShell>
   );
 }

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireApiAuth } from "@/lib/api-helpers";
+import {
+  requireApiAuth,
+  respostaProibida,
+  professorLecionaTurma,
+} from "@/lib/api-helpers";
 import {
   relatorioTurmaProfessor,
   relatorioAdminFinanceiro,
@@ -16,6 +20,12 @@ export async function GET(request: Request) {
   const formato = searchParams.get("formato");
 
   if (tipo === "turma" && turmaId) {
+    // Professor só exporta relatórios das próprias turmas
+    if (session!.user.papel === "PROFESSOR") {
+      const leciona = await professorLecionaTurma(session!.user.id, turmaId);
+      if (!leciona) return respostaProibida("Você não leciona nesta turma");
+    }
+
     if (formato === "xlsx") {
       const buffer = await exportarRelatorioTurmaXlsx(turmaId);
       return new NextResponse(buffer, {
@@ -29,7 +39,8 @@ export async function GET(request: Request) {
     return NextResponse.json(await relatorioTurmaProfessor(turmaId));
   }
 
-  if (tipo === "financeiro" && session!.user.papel === "ADMIN") {
+  if (tipo === "financeiro") {
+    if (session!.user.papel !== "ADMIN") return respostaProibida();
     return NextResponse.json(await relatorioAdminFinanceiro());
   }
 

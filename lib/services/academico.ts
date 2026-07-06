@@ -1,7 +1,123 @@
 import { prisma } from "@/lib/prisma";
 import { registrarLog } from "@/lib/logging/sheets";
 import { proximaDataDiaSemana } from "@/lib/utils";
-import type { PapelUsuario } from "@prisma/client";
+import { hashSenha } from "@/lib/crypto";
+import type { NomeCurso, PapelUsuario } from "@prisma/client";
+
+export async function criarTurma(data: {
+  nome: string;
+  cursoNome: NomeCurso;
+  diaSemana: string;
+  horaInicio: string;
+  horaFim: string;
+  capacidade?: number;
+  usuarioId: string;
+  papel: PapelUsuario;
+}) {
+  const curso = await prisma.curso.findUnique({ where: { nome: data.cursoNome } });
+  if (!curso) throw new Error("Curso não encontrado");
+
+  const turma = await prisma.turma.create({
+    data: {
+      nome: data.nome,
+      cursoId: curso.id,
+      diaSemana: data.diaSemana,
+      horaInicio: data.horaInicio,
+      horaFim: data.horaFim,
+      capacidade: data.capacidade || 30,
+    },
+  });
+
+  registrarLog({
+    nivel: "INFO",
+    categoria: "ACADEMICO",
+    acao: "TURMA_CRIADA",
+    usuarioId: data.usuarioId,
+    papel: data.papel,
+    entidade: "Turma",
+    entidadeId: turma.id,
+    detalhes: { nome: data.nome, curso: data.cursoNome },
+  });
+
+  return turma;
+}
+
+export async function criarProfessor(data: {
+  nome: string;
+  email: string;
+  senha?: string;
+  turmaId?: string;
+  usuarioId: string;
+  papel: PapelUsuario;
+}) {
+  const email = data.email.toLowerCase().trim();
+  const existente = await prisma.professor.findUnique({ where: { email } });
+  if (existente) throw new Error("Já existe um professor com este e-mail");
+
+  const professor = await prisma.professor.create({
+    data: {
+      nome: data.nome,
+      email,
+      senhaHash: await hashSenha(data.senha || "Prof@2026"),
+    },
+  });
+
+  if (data.turmaId) {
+    await prisma.turmaProfessor.create({
+      data: { turmaId: data.turmaId, professorId: professor.id },
+    });
+  }
+
+  registrarLog({
+    nivel: "INFO",
+    categoria: "ACADEMICO",
+    acao: "PROFESSOR_CRIADO",
+    usuarioId: data.usuarioId,
+    papel: data.papel,
+    entidade: "Professor",
+    entidadeId: professor.id,
+    detalhes: { email },
+  });
+
+  return professor;
+}
+
+export async function gerarProximoModulo(data: {
+  turmaId: string;
+  mesReferencia?: string; // "YYYY-MM"
+  usuarioId: string;
+  papel: PapelUsuario;
+}) {
+  const ultimo = await prisma.modulo.findFirst({
+    where: { turmaId: data.turmaId },
+    orderBy: { numero: "desc" },
+  });
+  const numero = (ultimo?.numero ?? 0) + 1;
+
+  let mes: Date;
+  if (data.mesReferencia) {
+    const [ano, mesNum] = data.mesReferencia.split("-").map(Number);
+    mes = new Date(ano, (mesNum || 1) - 1, 1, 12);
+  } else {
+    const hoje = new Date();
+    mes = new Date(hoje.getFullYear(), hoje.getMonth(), 1, 12);
+  }
+
+  const duplicado = await prisma.modulo.findFirst({
+    where: {
+      turmaId: data.turmaId,
+      mesReferencia: {
+        gte: new Date(mes.getFullYear(), mes.getMonth(), 1),
+        lt: new Date(mes.getFullYear(), mes.getMonth() + 1, 1),
+      },
+    },
+  });
+  if (duplicado) {
+    throw new Error("Já existe um módulo para este mês nesta turma");
+  }
+
+  return gerarModuloParaTurma(data.turmaId, numero, mes, data.usuarioId, data.papel);
+}
 
 export async function gerarModuloParaTurma(
   turmaId: string,
@@ -130,8 +246,22 @@ export async function lancarEntregaRedacao(data: {
 export async function aprovarEntregaRedacao(
   entregaId: string,
   usuarioId: string,
-  papel: PapelUsuario
+  papel: PapelUsuario,
+  correcoes?: { numero: number; nota?: number; comentario?: string }[]
 ) {
+  // O admin pode registrar/ajustar as notas no momento da aprovação
+  if (correcoes?.length) {
+    await prisma.correcaoRedacao.deleteMany({ where: { entregaId } });
+    await prisma.correcaoRedacao.createMany({
+      data: correcoes.map((c) => ({
+        entregaId,
+        numero: c.numero,
+        nota: c.nota,
+        comentario: c.comentario,
+      })),
+    });
+  }
+
   const entrega = await prisma.entregaRedacao.update({
     where: { id: entregaId },
     data: { status: "APROVADA" },

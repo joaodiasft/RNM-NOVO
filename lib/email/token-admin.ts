@@ -9,9 +9,10 @@ const MINUTOS_EXPIRACAO = parseInt(
 );
 
 export function gerarCodigo(tamanho = 6): string {
-  return Array.from({ length: tamanho }, () =>
-    Math.floor(Math.random() * 10).toString()
-  ).join("");
+  // CSPRNG — Math.random não é adequado para códigos de autenticação
+  const bytes = new Uint8Array(tamanho);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => (b % 10).toString()).join("");
 }
 
 function montarCorpoEmail(codigo: string) {

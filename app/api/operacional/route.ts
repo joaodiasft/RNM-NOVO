@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireApiAuth, handleApiError } from "@/lib/api-helpers";
+import {
+  requireApiAuth,
+  handleApiError,
+  respostaProibida,
+  alunoDoResponsavel,
+  alunoPertenceAoResponsavel,
+} from "@/lib/api-helpers";
 import {
   confirmarPagamento,
   atualizarPagamentosAtrasados,
@@ -10,6 +16,14 @@ import {
 } from "@/lib/services/operacional";
 import { prisma } from "@/lib/prisma";
 import { descriptografar } from "@/lib/crypto";
+import {
+  confirmarPagamentoSchema,
+  acessoExternoSchema,
+  avisoSchema,
+  solicitarRematriculaSchema,
+  responderRematriculaSchema,
+  validar,
+} from "@/lib/validacao";
 
 export async function GET(request: Request) {
   const { session, error } = await requireApiAuth([
@@ -21,28 +35,51 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const tipo = searchParams.get("tipo");
+  const papel = session!.user.papel;
+
+  // Resolve o aluno permitido para ALUNO/RESPONSAVEL — sempre no banco
+  async function alunoPermitido(): Promise<string | null> {
+    if (papel === "ALUNO") return session!.user.id;
+    if (papel === "RESPONSAVEL") {
+      return alunoDoResponsavel(
+        session!.user.id,
+        searchParams.get("alunoId") || session!.user.alunoSelecionadoId
+      );
+    }
+    return null; // ADMIN
+  }
 
   if (tipo === "pagamentos") {
     await atualizarPagamentosAtrasados();
+    const alunoId = await alunoPermitido();
+    if (papel !== "ADMIN" && !alunoId) return NextResponse.json([]);
     const pagamentos = await prisma.pagamento.findMany({
+      where: alunoId ? { matriculaCurso: { alunoId } } : undefined,
       include: {
         matriculaCurso: {
-          include: { aluno: true, turma: { include: { curso: true } } },
+          include: {
+            aluno: { select: { id: true, nome: true, codigo: true } },
+            turma: { include: { curso: true } },
+          },
         },
       },
       orderBy: { competencia: "desc" },
+      take: 500,
     });
     return NextResponse.json(pagamentos);
   }
 
   if (tipo === "acessos") {
-    let alunoId = searchParams.get("alunoId");
-    if (session!.user.papel === "ALUNO") alunoId = session!.user.id;
-    if (session!.user.papel === "RESPONSAVEL") {
-      alunoId = session!.user.alunoSelecionadoId || alunoId;
+    let alunoId: string | null;
+    if (papel === "ADMIN") {
+      alunoId = searchParams.get("alunoId");
+    } else {
+      alunoId = await alunoPermitido();
+      if (!alunoId) return NextResponse.json([]);
     }
     const acessos = await prisma.acessoExterno.findMany({
       where: alunoId ? { alunoId } : undefined,
+      take: 500,
     });
     return NextResponse.json(
       acessos.map((a) => ({
@@ -53,16 +90,46 @@ export async function GET(request: Request) {
   }
 
   if (tipo === "avisos") {
+    // Mural filtrado por papel (curso/turma/aluno)
+    if (papel === "ADMIN") {
+      const avisos = await prisma.aviso.findMany({
+        orderBy: { criadoEm: "desc" },
+        take: 100,
+      });
+      return NextResponse.json(avisos);
+    }
+    const alunoId = await alunoPermitido();
+    if (!alunoId) return NextResponse.json([]);
+    const matriculas = await prisma.matriculaCurso.findMany({
+      where: { alunoId, status: "ATIVA" },
+      select: { turmaId: true, turma: { select: { cursoId: true } } },
+    });
     const avisos = await prisma.aviso.findMany({
+      where: {
+        OR: [
+          { publicoAlvo: "TODOS" },
+          { publicoAlvo: "ALUNO", alunoId },
+          { publicoAlvo: "TURMA", turmaId: { in: matriculas.map((m) => m.turmaId) } },
+          {
+            publicoAlvo: "CURSO",
+            cursoId: { in: matriculas.map((m) => m.turma.cursoId) },
+          },
+        ],
+      },
       orderBy: { criadoEm: "desc" },
+      take: 100,
     });
     return NextResponse.json(avisos);
   }
 
   if (tipo === "rematriculas") {
+    const alunoId = await alunoPermitido();
+    if (papel !== "ADMIN" && !alunoId) return NextResponse.json([]);
     const solicitacoes = await prisma.solicitacaoRematricula.findMany({
-      include: { aluno: true },
+      where: alunoId ? { alunoId } : undefined,
+      include: { aluno: { select: { id: true, nome: true, codigo: true } } },
       orderBy: { dataSolicitacao: "desc" },
+      take: 500,
     });
     return NextResponse.json(solicitacoes);
   }
@@ -79,66 +146,105 @@ export async function POST(request: Request) {
   if (error) return error;
 
   try {
-    const body = await request.json();
+    const bruto = (await request.json().catch(() => null)) as {
+      acao?: string;
+    } | null;
+    if (!bruto?.acao) {
+      return NextResponse.json({ erro: "Ação inválida" }, { status: 400 });
+    }
+    const papel = session!.user.papel;
 
-    switch (body.acao) {
-      case "confirmar_pagamento":
-        if (session!.user.papel !== "ADMIN") {
-          return NextResponse.json({ erro: "Sem permissão" }, { status: 403 });
-        }
+    switch (bruto.acao) {
+      case "confirmar_pagamento": {
+        if (papel !== "ADMIN") return respostaProibida();
+        const body = validar(confirmarPagamentoSchema, bruto);
+        if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
         return NextResponse.json(
           await confirmarPagamento({
-            pagamentoId: body.pagamentoId,
-            formaPagamento: body.formaPagamento,
+            pagamentoId: body.data.pagamentoId,
+            formaPagamento: body.data.formaPagamento,
             usuarioId: session!.user.id,
-            papel: session!.user.papel,
-            observacao: body.observacao,
+            papel,
+            observacao: body.data.observacao || undefined,
           })
         );
+      }
 
-      case "cadastrar_acesso":
-        if (session!.user.papel !== "ADMIN") {
-          return NextResponse.json({ erro: "Sem permissão" }, { status: 403 });
-        }
+      case "cadastrar_acesso": {
+        if (papel !== "ADMIN") return respostaProibida();
+        const body = validar(acessoExternoSchema, bruto);
+        if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
         return NextResponse.json(
           await cadastrarAcessoExterno({
-            ...body,
+            ...body.data,
             usuarioId: session!.user.id,
-            papel: session!.user.papel,
+            papel,
           })
         );
+      }
 
-      case "criar_aviso":
-        if (session!.user.papel !== "ADMIN") {
-          return NextResponse.json({ erro: "Sem permissão" }, { status: 403 });
-        }
+      case "criar_aviso": {
+        if (papel !== "ADMIN") return respostaProibida();
+        const body = validar(avisoSchema, bruto);
+        if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
         return NextResponse.json(
-          await criarAviso({ ...body, criadoPorId: session!.user.id })
+          await criarAviso({
+            titulo: body.data.titulo,
+            mensagem: body.data.mensagem,
+            publicoAlvo: body.data.publicoAlvo,
+            cursoId: body.data.cursoId || undefined,
+            turmaId: body.data.turmaId || undefined,
+            alunoId: body.data.alunoId || undefined,
+            criadoPorId: session!.user.id,
+          })
         );
+      }
 
-      case "solicitar_rematricula":
+      case "solicitar_rematricula": {
+        const body = validar(solicitarRematriculaSchema, bruto);
+        if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
+
+        // Escopo: aluno só solicita para si; responsável só para filho vinculado
+        let alunoId: string;
+        if (papel === "ALUNO") {
+          alunoId = session!.user.id;
+        } else if (papel === "RESPONSAVEL") {
+          const alvo = body.data.alunoId || session!.user.alunoSelecionadoId;
+          if (!alvo || !(await alunoPertenceAoResponsavel(session!.user.id, alvo))) {
+            return respostaProibida("Este aluno não está vinculado a você");
+          }
+          alunoId = alvo;
+        } else {
+          if (!body.data.alunoId) {
+            return NextResponse.json({ erro: "Informe o aluno" }, { status: 400 });
+          }
+          alunoId = body.data.alunoId;
+        }
+
         return NextResponse.json(
           await solicitarRematricula({
-            alunoId: body.alunoId || session!.user.id,
-            turmaId: body.turmaId,
-            planoId: body.planoId,
+            alunoId,
+            turmaId: body.data.turmaId,
+            planoId: body.data.planoId,
             usuarioId: session!.user.id,
-            papel: session!.user.papel,
+            papel,
           })
         );
+      }
 
-      case "responder_rematricula":
-        if (session!.user.papel !== "ADMIN") {
-          return NextResponse.json({ erro: "Sem permissão" }, { status: 403 });
-        }
+      case "responder_rematricula": {
+        if (papel !== "ADMIN") return respostaProibida();
+        const body = validar(responderRematriculaSchema, bruto);
+        if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
         return NextResponse.json(
           await responderRematricula({
-            solicitacaoId: body.solicitacaoId,
-            status: body.status,
+            solicitacaoId: body.data.solicitacaoId,
+            status: body.data.status,
             respondidoPorId: session!.user.id,
-            observacao: body.observacao,
+            observacao: body.data.observacao,
           })
         );
+      }
 
       default:
         return NextResponse.json({ erro: "Ação inválida" }, { status: 400 });

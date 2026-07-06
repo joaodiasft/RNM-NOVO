@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { DashboardShell, Card } from "@/components/DashboardShell";
+import { DashboardShell, Card, EmptyState } from "@/components/DashboardShell";
+import { CursoBadge } from "@/components/ui/CursoBadge";
 import { FormFrequencia } from "@/components/forms/FormFrequencia";
 
 export default async function ProfessorFrequenciaPage({
@@ -22,7 +23,13 @@ export default async function ProfessorFrequenciaPage({
     },
     include: {
       curso: true,
-      modulos: { orderBy: { numero: "desc" }, take: 1, include: { aulas: { orderBy: { numero: "asc" } } } },
+      modulos: {
+        orderBy: { numero: "desc" },
+        take: 1,
+        include: {
+          aulas: { orderBy: { numero: "asc" }, include: { frequencias: true } },
+        },
+      },
       matriculas: { where: { status: "ATIVA" }, include: { aluno: true } },
     },
   });
@@ -30,32 +37,54 @@ export default async function ProfessorFrequenciaPage({
   return (
     <DashboardShell
       titulo="Lançamento de Frequência"
-      corAccent="#212529"
       userName={session.user.nome}
       papel="PROFESSOR"
-      navItems={[
-        { href: "/professor", label: "Dashboard" },
-        { href: "/professor/turmas", label: "Turmas" },
-        { href: "/professor/frequencia", label: "Frequência" },
-        { href: "/professor/relatorios", label: "Relatórios" },
-      ]}
     >
-      {turmas.map((t) => (
-        <Card key={t.id} title={`${t.nome} — ${t.curso.nome}`} className="mb-4">
-          {t.modulos[0]?.aulas.map((aula) => (
-            <div key={aula.id} className="mb-4">
-              <p className="text-sm font-medium mb-2">
-                Aula {aula.numero} — {new Date(aula.data).toLocaleDateString("pt-BR")}
-              </p>
-              <FormFrequencia
-                aulaId={aula.id}
-                alunos={t.matriculas.map((m) => m.aluno)}
-                cursoRedacao={t.curso.nome === "REDACAO"}
-              />
-            </div>
-          ))}
+      {turmas.length === 0 ? (
+        <Card>
+          <EmptyState
+            icone="check-circle"
+            titulo="Nenhuma turma vinculada"
+            descricao="Fale com a administração para vincular você a uma turma."
+          />
         </Card>
-      ))}
+      ) : (
+        <div className="space-y-6">
+          {turmas.map((t) => (
+            <Card
+              key={t.id}
+              title={`Turma ${t.nome}`}
+              acao={<CursoBadge curso={t.curso.nome} />}
+            >
+              {!t.modulos[0] ? (
+                <p className="text-sm text-gray-500">
+                  Sem módulo ativo neste mês. Peça à administração para gerar o módulo.
+                </p>
+              ) : (
+                t.modulos[0].aulas.map((aula) => {
+                  const iniciais = Object.fromEntries(
+                    aula.frequencias.map((f) => [f.alunoId, f.status])
+                  );
+                  return (
+                    <div key={aula.id} className="mb-5 last:mb-0">
+                      <p className="mb-2 text-sm font-semibold text-gray-800">
+                        Aula {aula.numero} —{" "}
+                        {new Date(aula.data).toLocaleDateString("pt-BR")}
+                      </p>
+                      <FormFrequencia
+                        aulaId={aula.id}
+                        alunos={t.matriculas.map((m) => m.aluno)}
+                        cursoRedacao={t.curso.nome === "REDACAO"}
+                        iniciais={iniciais}
+                      />
+                    </div>
+                  );
+                })
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
     </DashboardShell>
   );
 }

@@ -8,16 +8,154 @@
   --color-rnm-matematica: #1971c2;
   --color-rnm-matematica-clara: #e7f3ff;
   --color-rnm-admin: #212529;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --rnm-accent: #d6336c;
+  --rnm-surface: #f5f6fa;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  font-family: var(--font-sans);
-  color: #1a1a1a;
-  background: #ffffff;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  color: #16181d;
+  background: var(--rnm-surface);
 }
 
-.font-display {
-  font-family: var(--font-display);
+/* ---------- Scrollbars discretos ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd0da transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #cbd0da;
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Esconde a scrollbar mantendo o scroll (nav mobile) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- Animações ---------- */
+@keyframes rnm-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rnm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes rnm-blob {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(24px, -32px) scale(1.08);
+  }
+  66% {
+    transform: translate(-18px, 22px) scale(0.94);
+  }
+}
+
+.animate-fade-up {
+  animation: rnm-fade-up 0.45s ease-out both;
+}
+.animate-fade-in {
+  animation: rnm-fade-in 0.3s ease-out both;
+}
+.animate-blob {
+  animation: rnm-blob 14s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-in,
+  .animate-blob {
+    animation: none;
+  }
+}
+
+/* ---------- Componentes utilitários ---------- */
+@layer components {
+  .input {
+    @apply w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm transition placeholder:text-gray-400 focus:border-transparent focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400;
+    --tw-ring-color: var(--rnm-accent);
+  }
+
+  select.input {
+    @apply appearance-none bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-size: 1.1rem;
+  }
+
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-success {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-primary {
+    @apply text-white shadow-sm hover:brightness-110;
+    background-color: var(--rnm-accent);
+  }
+
+  .btn-secondary {
+    @apply border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 text-white shadow-sm hover:bg-red-700;
+  }
+
+  .btn-success {
+    @apply bg-emerald-600 text-white shadow-sm hover:bg-emerald-700;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-sm font-medium text-gray-700;
+  }
+
+  .msg-ok {
+    @apply flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800;
+  }
+
+  .msg-erro {
+    @apply flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700;
+  }
+}
+
+/* Área segura (iPhone com notch) para a barra inferior */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }

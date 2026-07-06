@@ -1,25 +1,49 @@
 import { NextResponse } from "next/server";
-import { requireApiAuth, handleApiError } from "@/lib/api-helpers";
+import {
+  requireApiAuth,
+  handleApiError,
+  respostaProibida,
+  turmaDaAulaSeProfessorLeciona,
+  alunoMatriculadoNaAula,
+} from "@/lib/api-helpers";
 import {
   lancarEntregaRedacao,
   aprovarEntregaRedacao,
 } from "@/lib/services/academico";
 import { prisma } from "@/lib/prisma";
+import { redacaoPostSchema, redacaoPatchSchema, validar } from "@/lib/validacao";
 
 export async function GET(request: Request) {
-  const { error } = await requireApiAuth(["ADMIN", "PROFESSOR", "ALUNO"]);
+  const { session, error } = await requireApiAuth(["ADMIN", "PROFESSOR", "ALUNO"]);
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
+  const papel = session!.user.papel;
+
+  const where: Record<string, unknown> = {};
+  if (status) where.status = status;
+
+  // Escopo por papel
+  if (papel === "ALUNO") {
+    where.alunoId = session!.user.id;
+  } else if (papel === "PROFESSOR") {
+    where.aula = {
+      modulo: {
+        turma: { professores: { some: { professorId: session!.user.id } } },
+      },
+    };
+  }
+
   const entregas = await prisma.entregaRedacao.findMany({
-    where: status ? { status } : undefined,
+    where,
     include: {
-      aluno: true,
+      aluno: { select: { id: true, nome: true, codigo: true } },
       aula: { include: { modulo: { include: { turma: true } } } },
       correcoes: true,
     },
     orderBy: { id: "desc" },
+    take: 500,
   });
   return NextResponse.json(entregas);
 }
@@ -29,16 +53,56 @@ export async function POST(request: Request) {
   if (error) return error;
 
   try {
-    const body = await request.json();
-    const alunoId =
-      session!.user.papel === "ALUNO" ? session!.user.id : body.alunoId;
+    const bruto = await request.json().catch(() => null);
+    const body = validar(redacaoPostSchema, bruto);
+    if (body.erro !== null) {
+      return NextResponse.json({ erro: body.erro }, { status: 400 });
+    }
+    const dados = body.data;
+    const papel = session!.user.papel;
+
+    // Aluno só lança a própria entrega e precisa estar matriculado na turma da aula
+    let alunoId: string;
+    if (papel === "ALUNO") {
+      alunoId = session!.user.id;
+      const matriculado = await alunoMatriculadoNaAula(alunoId, dados.aulaId);
+      if (!matriculado) {
+        return respostaProibida("Você não está matriculado na turma desta aula");
+      }
+    } else {
+      if (!dados.alunoId) {
+        return NextResponse.json({ erro: "Informe o aluno" }, { status: 400 });
+      }
+      alunoId = dados.alunoId;
+      if (papel === "PROFESSOR") {
+        const turmaId = await turmaDaAulaSeProfessorLeciona(
+          session!.user.id,
+          dados.aulaId
+        );
+        if (!turmaId) {
+          return respostaProibida("Você não leciona na turma desta aula");
+        }
+      }
+      const matriculado = await alunoMatriculadoNaAula(alunoId, dados.aulaId);
+      if (!matriculado) {
+        return NextResponse.json(
+          { erro: "Aluno não está matriculado na turma desta aula" },
+          { status: 400 }
+        );
+      }
+    }
+
     const entrega = await lancarEntregaRedacao({
-      aulaId: body.aulaId,
+      aulaId: dados.aulaId,
       alunoId,
-      quantidadeEntregue: body.quantidadeEntregue,
-      correcoes: body.correcoes,
+      quantidadeEntregue: dados.quantidadeEntregue,
+      correcoes: dados.correcoes?.map((c) => ({
+        numero: c.numero,
+        nota: c.nota ?? undefined,
+        comentario: c.comentario ?? undefined,
+      })),
       usuarioId: session!.user.id,
-      papel: session!.user.papel,
+      papel,
     });
     return NextResponse.json(entrega);
   } catch (err) {
@@ -51,11 +115,20 @@ export async function PATCH(request: Request) {
   if (error) return error;
 
   try {
-    const { entregaId } = await request.json();
+    const bruto = await request.json().catch(() => null);
+    const body = validar(redacaoPatchSchema, bruto);
+    if (body.erro !== null) {
+      return NextResponse.json({ erro: body.erro }, { status: 400 });
+    }
     const entrega = await aprovarEntregaRedacao(
-      entregaId,
+      body.data.entregaId,
       session!.user.id,
-      session!.user.papel
+      session!.user.papel,
+      body.data.correcoes?.map((c) => ({
+        numero: c.numero,
+        nota: c.nota ?? undefined,
+        comentario: c.comentario ?? undefined,
+      }))
     );
     return NextResponse.json(entrega);
   } catch (err) {

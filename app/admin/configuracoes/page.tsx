@@ -1,23 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { DashboardShell, Card } from "@/components/DashboardShell";
-import { ADMIN_COR } from "@/lib/utils/index";
+import { DashboardShell, Card, EmptyState } from "@/components/DashboardShell";
 import { FormUploadFoto } from "@/components/forms/FormUploadFoto";
-
-const nav = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/usuarios", label: "Usuários" },
-  { href: "/admin/academico", label: "Acadêmico" },
-  { href: "/admin/matriculas", label: "Matrículas" },
-  { href: "/admin/frequencia", label: "Frequência" },
-  { href: "/admin/redacao", label: "Redação" },
-  { href: "/admin/financeiro", label: "Financeiro" },
-  { href: "/admin/acessos", label: "Acessos Externos" },
-  { href: "/admin/avisos", label: "Avisos" },
-  { href: "/admin/relatorios", label: "Relatórios" },
-  { href: "/admin/configuracoes", label: "Configurações" },
-];
 
 export default async function ConfiguracoesPage() {
   const session = await auth();
@@ -29,19 +14,30 @@ export default async function ConfiguracoesPage() {
   });
 
   return (
-    <DashboardShell titulo="Configurações" corAccent={ADMIN_COR} userName={session.user.nome} papel="ADMIN" navItems={nav}>
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Card title="Foto de perfil (Google Drive)">
+    <DashboardShell titulo="Configurações" userName={session.user.nome} papel="ADMIN">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Foto de perfil" descricao="Enviada para o Google Drive da escola">
           <FormUploadFoto tipo="admin" userId={session.user.id} />
         </Card>
-        <Card title="Logs locais (espelho do Sheets)">
-          <div className="max-h-80 overflow-y-auto text-xs space-y-1">
-            {logs.map((l) => (
-              <div key={l.id} className="border-b border-gray-50 pb-1">
-                {l.timestamp.toISOString()} · {l.acao} · {l.entidade}
-              </div>
-            ))}
-          </div>
+        <Card title="Auditoria" descricao="Últimas 50 ações (espelho do Google Sheets)">
+          {logs.length === 0 ? (
+            <EmptyState icone="cog" titulo="Nenhum log registrado ainda" />
+          ) : (
+            <div className="max-h-96 space-y-1.5 overflow-y-auto pr-1 text-xs">
+              {logs.map((l) => (
+                <div
+                  key={l.id}
+                  className="flex flex-wrap items-center gap-x-2 border-b border-gray-50 pb-1.5 text-gray-600"
+                >
+                  <span className="text-gray-400">
+                    {l.timestamp.toLocaleString("pt-BR")}
+                  </span>
+                  <span className="font-semibold text-gray-800">{l.acao}</span>
+                  <span>· {l.entidade}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
     </DashboardShell>
