@@ -1,5 +1,5 @@
 import type { NomeCurso } from "@prisma/client";
-import { CORES_CURSO } from "@/lib/utils/index";
+import { CORES_CURSO } from "@/lib/constants/cores";
 
 /**
  * Identidade visual dos cursos — sempre com a cor oficial:

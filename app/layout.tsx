@@ -13,6 +13,13 @@ export const metadata: Metadata = {
   },
   description: "Plataforma de gestão acadêmica — Redação Nota Mil",
   applicationName: "Redação Nota Mil",
+  // Preparação para uso como app no celular (PWA / futura versão mobile)
+  appleWebApp: {
+    capable: true,
+    title: "RNM",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {

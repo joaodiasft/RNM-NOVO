@@ -288,6 +288,23 @@ export const trocarSenhaSchema = z.object({
     .regex(/\d/, "A nova senha precisa de pelo menos um número"),
 });
 
+export const premiarAlunoSchema = z.object({
+  alunoId: cuid,
+  titulo: z.string().trim().min(2, "Título muito curto").max(80),
+  descricao: textoOpcional(300),
+  icone: z.string().trim().max(8).optional().or(z.literal("")),
+});
+
+export const removerPremiacaoSchema = z.object({
+  premiacaoId: cuid,
+});
+
+export const feedbackCursoSchema = z.object({
+  cursoId: cuid,
+  nota: z.number().int().min(1, "Dê de 1 a 5 estrelas").max(5),
+  comentario: textoOpcional(600),
+});
+
 /** Valida `body` com o schema; retorna dados tipados ou a mensagem do primeiro erro. */
 export function validar<T extends z.ZodTypeAny>(
   schema: T,

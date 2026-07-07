@@ -18,6 +18,11 @@ function comSeguranca(res: NextResponse): NextResponse {
     "Permissions-Policy",
     "camera=(), microphone=(), geolocation=()"
   );
+  // Força HTTPS por 1 ano (ignorado em http local)
+  res.headers.set(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains"
+  );
   return res;
 }
 

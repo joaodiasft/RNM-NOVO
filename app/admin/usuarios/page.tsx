@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { DashboardShell, Card, Badge, EmptyState } from "@/components/DashboardShell";
-import { CursoBadge } from "@/components/ui/CursoBadge";
+import { DashboardShell, Card, EmptyState } from "@/components/DashboardShell";
 import { FormNovoAluno } from "@/components/forms/FormNovoAluno";
+import { ListaAlunosBusca } from "@/components/ListaAlunosBusca";
 
 export default async function UsuariosPage() {
   const session = await auth();
@@ -44,41 +44,18 @@ export default async function UsuariosPage() {
           {alunos.length === 0 ? (
             <EmptyState icone="users" titulo="Nenhum aluno cadastrado" />
           ) : (
-            <div className="max-h-[720px] space-y-2 overflow-y-auto pr-1">
-              {alunos.map((a) => (
-                <div
-                  key={a.id}
-                  className="rounded-xl border border-gray-100 px-3.5 py-2.5"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-semibold text-gray-900">
-                      {a.nome}
-                    </p>
-                    <Badge tom={a.ativo ? "green" : "red"}>
-                      {a.ativo ? "Ativo" : "Inativo"}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {a.codigo}
-                    {a.telefone ? ` · ${a.telefone}` : ""}
-                    {a.serie ? ` · ${a.serie}` : ""}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    {a.matriculas.map((m) => (
-                      <CursoBadge key={m.id} curso={m.turma.curso.nome} tamanho="sm" />
-                    ))}
-                    {a.matriculas.length === 0 && (
-                      <span className="text-xs text-gray-400">Sem matrícula ativa</span>
-                    )}
-                  </div>
-                  {a.responsaveis.length > 0 && (
-                    <p className="mt-1 text-xs text-gray-400">
-                      Resp.: {a.responsaveis.map((r) => r.responsavel.nome).join(", ")}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+            <ListaAlunosBusca
+              alunos={alunos.map((a) => ({
+                id: a.id,
+                nome: a.nome,
+                codigo: a.codigo,
+                ativo: a.ativo,
+                telefone: a.telefone,
+                serie: a.serie,
+                cursos: a.matriculas.map((m) => m.turma.curso.nome),
+                responsaveis: a.responsaveis.map((r) => r.responsavel.nome),
+              }))}
+            />
           )}
         </Card>
       </div>

@@ -55,6 +55,13 @@ export const authConfig: NextAuthConfig = {
 
         if (!perfil || !identificador || !senha) return null;
 
+        // Anti-força-bruta: 5 falhas em 15 min bloqueiam o identificador
+        const { loginBloqueado, registrarFalhaLogin } = await import(
+          "@/lib/auth/protecao-login"
+        );
+        if (await loginBloqueado(identificador)) return null;
+
+        const resultado = await (async () => {
         switch (perfil) {
           case "ALUNO": {
             const aluno = await prisma.aluno.findUnique({
@@ -115,6 +122,12 @@ export const authConfig: NextAuthConfig = {
           default:
             return null;
         }
+        })();
+
+        if (!resultado) {
+          await registrarFalhaLogin(identificador, perfil);
+        }
+        return resultado;
       },
     }),
   ],

@@ -56,6 +56,19 @@ export default async function AdminDashboard() {
     prisma.professor.count({ where: { ativo: true } }),
   ]);
 
+  // Aniversariantes do mês
+  const alunosComNascimento = await prisma.aluno.findMany({
+    where: { ativo: true, dataNascimento: { not: null } },
+    select: { id: true, nome: true, codigo: true, dataNascimento: true },
+  });
+  const mesAtual = new Date().getMonth();
+  const aniversariantes = alunosComNascimento
+    .filter((a) => a.dataNascimento && new Date(a.dataNascimento).getMonth() === mesAtual)
+    .sort(
+      (a, b) =>
+        new Date(a.dataNascimento!).getDate() - new Date(b.dataNascimento!).getDate()
+    );
+
   const somaAtrasados = pagamentosAtrasados.reduce((s, p) => s + Number(p.valor), 0);
   const recebidoMes = pagamentosMes
     .filter((p) => p.status === "CONFIRMADO")
@@ -198,6 +211,23 @@ export default async function AdminDashboard() {
                     <Badge tom={a._count.leituras > 0 ? "green" : "gray"}>
                       {a._count.leituras} leitura(s)
                     </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card title={`Aniversariantes do mês (${aniversariantes.length})`} descricao="Uma mensagem faz diferença 🎉">
+            {aniversariantes.length === 0 ? (
+              <p className="text-sm text-gray-500">Nenhum aniversariante este mês.</p>
+            ) : (
+              <ul className="max-h-44 space-y-1.5 overflow-y-auto pr-1 text-sm">
+                {aniversariantes.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between">
+                    <span className="truncate font-medium text-gray-800">{a.nome}</span>
+                    <span className="shrink-0 text-xs text-gray-500">
+                      dia {new Date(a.dataNascimento!).getDate()}
+                    </span>
                   </li>
                 ))}
               </ul>

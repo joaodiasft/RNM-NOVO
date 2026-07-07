@@ -22,10 +22,25 @@ export async function requireApiAuth(papeis?: PapelUsuario[]) {
   return { session };
 }
 
+/**
+ * Nunca vaza detalhes internos (Prisma, stack, SQL) para o cliente.
+ * Só expõe mensagens de regras de negócio lançadas pelos nossos serviços
+ * (`new Error("...")` puro). Qualquer outra coisa vira erro genérico.
+ */
 export function handleApiError(err: unknown) {
-  const message = err instanceof Error ? err.message : "Erro interno";
-  console.error(err);
-  return NextResponse.json({ erro: message }, { status: 400 });
+  console.error("[api]", err);
+  const ehErroDeNegocio =
+    err instanceof Error &&
+    err.constructor === Error &&
+    err.message.length > 0 &&
+    err.message.length <= 200;
+  const mensagem = ehErroDeNegocio
+    ? (err as Error).message
+    : "Não foi possível concluir a operação. Tente novamente.";
+  return NextResponse.json(
+    { erro: mensagem },
+    { status: ehErroDeNegocio ? 400 : 500 }
+  );
 }
 
 export function respostaProibida(motivo = "Sem permissão") {

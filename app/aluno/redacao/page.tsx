@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { DashboardShell, Card, Badge, EmptyState } from "@/components/DashboardShell";
+import { FormNotasAluno } from "@/components/forms/FormNotasAluno";
 
 export default async function AlunoRedacaoPage() {
   const session = await auth();
@@ -100,10 +101,21 @@ export default async function AlunoRedacaoPage() {
                     A secretaria ainda não registrou suas entregas nesta aula.
                   </p>
                 )}
-                {e && !aprovada && (
-                  <p className="text-sm text-amber-800">
-                    {e.quantidadeEntregue} redação(ões) registradas — aguardando
-                    correção e aprovação do admin para ver notas.
+                {e && !aprovada && e.quantidadeEntregue > 0 && (
+                  <FormNotasAluno
+                    entregaId={e.id}
+                    quantidade={e.quantidadeEntregue}
+                    correcoes={e.correcoes.map((c) => ({
+                      numero: c.numero,
+                      nota: c.nota,
+                      notaSofia: c.notaSofia,
+                      competencias: c.competencias,
+                    }))}
+                  />
+                )}
+                {e && !aprovada && e.quantidadeEntregue === 0 && (
+                  <p className="text-sm text-gray-500">
+                    Nenhuma redação registrada nesta aula.
                   </p>
                 )}
                 {e && aprovada && (

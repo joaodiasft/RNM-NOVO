@@ -83,6 +83,14 @@ export default async function AlunoDashboard() {
   const temPendente = pagamentos.some(
     (p) => p.status === "PENDENTE" || p.status === "ATRASADO"
   );
+  const totalAberto = pagamentos
+    .filter((p) => p.status === "PENDENTE")
+    .reduce((s, p) => s + Number(p.valor), 0);
+  const totalAtrasado = pagamentos
+    .filter((p) => p.status === "ATRASADO")
+    .reduce((s, p) => s + Number(p.valor), 0);
+  const brl = (v: number) =>
+    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   return (
     <DashboardShell
@@ -201,6 +209,22 @@ export default async function AlunoDashboard() {
           <EmptyState icone="currency" titulo="Nenhum lançamento" />
         ) : (
           <>
+            <div className="mb-3 grid grid-cols-2 gap-3">
+              <div
+                className={`rounded-xl px-4 py-3 text-sm ${
+                  totalAtrasado > 0
+                    ? "bg-red-50 text-red-700"
+                    : "bg-emerald-50 text-emerald-700"
+                }`}
+              >
+                <p className="text-xs font-medium opacity-70">Em atraso</p>
+                <p className="font-display text-lg font-bold">{brl(totalAtrasado)}</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                <p className="text-xs font-medium opacity-70">A vencer</p>
+                <p className="font-display text-lg font-bold">{brl(totalAberto)}</p>
+              </div>
+            </div>
             <ul className="divide-y divide-gray-100">
               {pagamentos.map((p) => (
                 <li

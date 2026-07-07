@@ -33,6 +33,21 @@ export default async function FinanceiroPage() {
   const somaConfirmados = confirmados.reduce((s, p) => s + Number(p.valor), 0);
   const somaAtrasados = atrasados.reduce((s, p) => s + Number(p.valor), 0);
 
+  // Resumo por competência (últimos 4 meses com lançamentos)
+  const porMes = new Map<
+    string,
+    { previsto: number; recebido: number; atrasado: number }
+  >();
+  for (const p of pagamentos) {
+    const m = porMes.get(p.competencia) ?? { previsto: 0, recebido: 0, atrasado: 0 };
+    const v = Number(p.valor);
+    m.previsto += v;
+    if (p.status === "CONFIRMADO") m.recebido += v;
+    if (p.status === "ATRASADO") m.atrasado += v;
+    porMes.set(p.competencia, m);
+  }
+  const meses = [...porMes.entries()].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 4);
+
   const repassePorCurso = confirmados.reduce(
     (acc, p) => {
       const curso = p.matriculaCurso.turma.curso.nome;
@@ -71,6 +86,46 @@ export default async function FinanceiroPage() {
             {somaAtrasados.toFixed(2)}
           </AlertBanner>
         </div>
+      )}
+
+      {meses.length > 0 && (
+        <Card
+          title="Resumo por mês"
+          descricao="Previsto × recebido × em atraso por competência"
+          className="mb-4"
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {meses.map(([competencia, v]) => {
+              const pct =
+                v.previsto > 0 ? Math.round((v.recebido / v.previsto) * 100) : 0;
+              return (
+                <div
+                  key={competencia}
+                  className="rounded-xl border border-gray-100 p-4 text-sm"
+                >
+                  <p className="font-display font-semibold text-gray-900">
+                    {competencia}
+                  </p>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
+                    <div
+                      className="h-full rounded-full bg-emerald-500"
+                      style={{ width: `${Math.min(100, pct)}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Recebido <strong className="text-emerald-700">R$ {v.recebido.toFixed(0)}</strong>{" "}
+                    de R$ {v.previsto.toFixed(0)} ({pct}%)
+                  </p>
+                  {v.atrasado > 0 && (
+                    <p className="text-xs font-medium text-red-600">
+                      R$ {v.atrasado.toFixed(0)} em atraso
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       )}
 
       <Card

@@ -85,6 +85,7 @@ model Curso {
   turmas      Turma[]
   planos      CursoPlano[]
   promocoes   Promocao[]
+  feedbacks   FeedbackCurso[]
 }
 
 model Turma {
@@ -165,6 +166,38 @@ model Aluno {
   frequencias     Frequencia[]
   entregasRedacao EntregaRedacao[]
   solicitacoes    SolicitacaoRematricula[]
+  premiacoes      Premiacao[]
+  feedbacksCurso  FeedbackCurso[]
+}
+
+// Premiação manual concedida pelo admin (troféus, destaques do mês etc.)
+model Premiacao {
+  id          String   @id @default(cuid())
+  alunoId     String
+  aluno       Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  titulo      String
+  descricao   String?
+  icone       String? // emoji
+  criadoPorId String
+  criadoEm    DateTime @default(now())
+
+  @@index([alunoId])
+}
+
+// Avaliação do curso feita pelo aluno (1 a 5 estrelas + comentário)
+model FeedbackCurso {
+  id           String   @id @default(cuid())
+  alunoId      String
+  aluno        Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  cursoId      String
+  curso        Curso    @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  nota         Int // 1-5
+  comentario   String?
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([alunoId, cursoId])
+  @@index([cursoId])
 }
 
 model Responsavel {

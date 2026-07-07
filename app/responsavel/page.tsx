@@ -71,9 +71,17 @@ export default async function ResponsavelDashboard() {
         ) : undefined
       }
     >
-      <p className="mb-4 text-sm text-gray-600">
-        Acompanhando: <strong>{alunoAtivo.nome}</strong> ({alunoAtivo.codigo})
-      </p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-gray-600">
+          Acompanhando: <strong>{alunoAtivo.nome}</strong> ({alunoAtivo.codigo})
+        </p>
+        <a
+          href={`/api/relatorios?tipo=aluno&alunoId=${alunoAtivo.id}`}
+          className="btn-secondary px-3 py-2 text-xs"
+        >
+          Baixar relatório completo (PDF)
+        </a>
+      </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4">
         <StatCard

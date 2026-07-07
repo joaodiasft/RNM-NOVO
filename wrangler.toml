@@ -3,6 +3,15 @@ name = "redacao-nota-mil"
 main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = [ "nodejs_compat" ]
+workers_dev = true
+
+[[routes]]
+pattern = "redacaonotamil.site/*"
+zone_id = "c6008871fb9f6f63455b259fc4d6ab04"
+
+[[routes]]
+pattern = "www.redacaonotamil.site/*"
+zone_id = "c6008871fb9f6f63455b259fc4d6ab04"
 
 [assets]
 directory = ".open-next/assets"

@@ -89,7 +89,13 @@ export function DashboardShell({
                     ? "text-white shadow-md"
                     : "text-slate-400 hover:bg-white/5 hover:text-white"
                 }`}
-                style={isAtivo ? { backgroundColor: accent } : undefined}
+                style={
+                  isAtivo
+                    ? {
+                        backgroundImage: `linear-gradient(135deg, ${accent}, ${accent}b3)`,
+                      }
+                    : undefined
+                }
               >
                 <Icon
                   name={item.icone}
@@ -243,7 +249,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] sm:p-6 ${className}`}
+      className={`rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] transition-shadow duration-200 hover:shadow-[0_4px_16px_rgba(16,24,40,0.08)] sm:p-6 ${className}`}
     >
       {(title || acao) && (
         <div className="mb-4 flex items-start justify-between gap-3">

@@ -54,7 +54,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { session, error } = await requireApiAuth(["ADMIN", "PROFESSOR"]);
+  // Professor NÃO altera nada — só visualiza (GET). Escrita: admin e aluno.
+  const { session, error } = await requireApiAuth(["ADMIN", "ALUNO"]);
   if (error) return error;
 
   try {
@@ -92,39 +93,23 @@ export async function POST(request: Request) {
         );
       }
 
-      // 2) Admin ou professor lança notas professora/Sofia
+      // 2) Aluno (a própria entrega) ou admin lançam as notas
+      //    professora/Sofia + competências
       case "notas": {
-        if (papel !== "ADMIN" && papel !== "PROFESSOR") {
-          return respostaProibida("Somente admin ou professor lança notas");
-        }
         const body = validar(lancarNotasSchema, bruto);
         if (body.erro !== null) {
           return NextResponse.json({ erro: body.erro }, { status: 400 });
         }
-        if (papel === "PROFESSOR") {
+        if (papel === "ALUNO") {
           const entrega = await prisma.entregaRedacao.findUnique({
             where: { id: body.data.entregaId },
-            include: {
-              aula: {
-                include: {
-                  modulo: {
-                    include: {
-                      turma: {
-                        include: {
-                          professores: { where: { professorId: session!.user.id } },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
+            select: { alunoId: true, status: true },
           });
-          if (
-            !entrega ||
-            entrega.aula.modulo.turma.professores.length === 0
-          ) {
-            return respostaProibida("Entrega fora das suas turmas");
+          if (!entrega || entrega.alunoId !== session!.user.id) {
+            return respostaProibida("Você só pode lançar notas da própria entrega");
+          }
+          if (entrega.status === "APROVADA") {
+            return respostaProibida("Entrega já aprovada — fale com a secretaria");
           }
         }
         return NextResponse.json(

@@ -24,9 +24,11 @@ Acesse o endereço do sistema e escolha o seu perfil:
 > aplicativo. Pode adicionar à tela inicial do celular pelo navegador
 > ("Adicionar à tela de início").
 
-> 🔑 **Esqueceu a senha?** Somente a secretaria (admin) pode redefinir.
-> Cada usuário pode trocar a própria senha em **Meu Perfil** (clique no
-> avatar com suas iniciais, no topo/rodapé da tela).
+> 🔑 **Aluno esqueceu a senha?** Na tela de login, clique em
+> **"Esqueci minha senha"** e informe a matrícula: uma senha nova (gerada
+> a partir da matrícula) é enviada para o e-mail cadastrado do aluno.
+> Professores e responsáveis: a redefinição é feita pela secretaria.
+> Todos podem trocar a própria senha em **Meu Perfil** (clique no avatar).
 
 ---
 
@@ -97,7 +99,11 @@ Acesse o endereço do sistema e escolha o seu perfil:
    confirmar pagamentos recebidos, publicar avisos.
 4. **Fim do módulo:** alunos/responsáveis solicitam rematrícula → admin
    aprova (cria matrícula nova + cobrança).
-5. **Relatórios:** exportar Excel por turma para reuniões.
+5. **Relatórios:** exportar Excel por turma para reuniões e, para conversar
+   com os pais, gerar o **Relatório individual do aluno (PDF A4)** em
+   Relatórios — com frequência, notas de redação (professora/Sofia +
+   competências ENEM + feedback) e situação financeira. O responsável
+   também baixa esse PDF direto no painel dele.
 
 ---
 

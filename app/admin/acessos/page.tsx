@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { DashboardShell, Card, EmptyState } from "@/components/DashboardShell";
 import { FormAcessoExterno } from "@/components/forms/FormAcessoExterno";
+import { ListaAcessosAdmin } from "@/components/ListaAcessosAdmin";
 
 export default async function AcessosPage() {
   const session = await auth();
@@ -25,7 +26,10 @@ export default async function AcessosPage() {
         >
           <FormAcessoExterno alunos={alunos} />
         </Card>
-        <Card title={`Acessos cadastrados (${acessos.length})`}>
+        <Card
+          title={`Acessos cadastrados (${acessos.length})`}
+          descricao="Busque e remova credenciais quando necessário"
+        >
           {acessos.length === 0 ? (
             <EmptyState
               icone="key"
@@ -33,20 +37,15 @@ export default async function AcessosPage() {
               descricao="Cadastre as credenciais de plataformas externas (SOFIA, Coredação...)."
             />
           ) : (
-            <ul className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
-              {acessos.map((a) => (
-                <li
-                  key={a.id}
-                  className="rounded-xl border border-gray-100 px-3.5 py-2.5 text-sm"
-                >
-                  <p className="font-medium text-gray-900">
-                    {a.plataforma}{" "}
-                    <span className="font-normal text-gray-500">— {a.aluno.nome}</span>
-                  </p>
-                  <p className="truncate text-xs text-gray-500">{a.email}</p>
-                </li>
-              ))}
-            </ul>
+            <ListaAcessosAdmin
+              acessos={acessos.map((a) => ({
+                id: a.id,
+                plataforma: a.plataforma,
+                email: a.email,
+                urlAcesso: a.urlAcesso,
+                aluno: { nome: a.aluno.nome, codigo: a.aluno.codigo },
+              }))}
+            />
           )}
         </Card>
       </div>

@@ -10,9 +10,15 @@ import {
   exportarRelatorioTurmaXlsx,
 } from "@/lib/services/relatorios";
 import { gerarPdfPrimeiroAcesso } from "@/lib/services/pdf-primeiro-acesso";
+import { gerarPdfRelatorioAluno } from "@/lib/services/pdf-relatorio-aluno";
+import { alunoPertenceAoResponsavel } from "@/lib/api-helpers";
 
 export async function GET(request: Request) {
-  const { session, error } = await requireApiAuth(["ADMIN", "PROFESSOR"]);
+  const { session, error } = await requireApiAuth([
+    "ADMIN",
+    "PROFESSOR",
+    "RESPONSAVEL",
+  ]);
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
@@ -21,7 +27,8 @@ export async function GET(request: Request) {
   const formato = searchParams.get("formato");
 
   if (tipo === "turma" && turmaId) {
-    // Professor só exporta relatórios das próprias turmas
+    // Somente admin e professor (das próprias turmas)
+    if (session!.user.papel === "RESPONSAVEL") return respostaProibida();
     if (session!.user.papel === "PROFESSOR") {
       const leciona = await professorLecionaTurma(session!.user.id, turmaId);
       if (!leciona) return respostaProibida("Você não leciona nesta turma");
@@ -46,6 +53,26 @@ export async function GET(request: Request) {
   }
 
   const alunoId = searchParams.get("alunoId");
+
+  // Relatório individual completo — para entregar ao pai/responsável.
+  // ADMIN: qualquer aluno. RESPONSÁVEL: somente filho vinculado (checado no banco).
+  if (tipo === "aluno" && alunoId) {
+    const papel = session!.user.papel;
+    if (papel === "RESPONSAVEL") {
+      const vinculado = await alunoPertenceAoResponsavel(session!.user.id, alunoId);
+      if (!vinculado) return respostaProibida("Aluno não vinculado a você");
+    } else if (papel !== "ADMIN") {
+      return respostaProibida();
+    }
+    const bytes = await gerarPdfRelatorioAluno(alunoId);
+    return new NextResponse(Buffer.from(bytes), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename=relatorio-aluno-${alunoId}.pdf`,
+      },
+    });
+  }
+
   if (tipo === "primeiro-acesso" && alunoId) {
     if (session!.user.papel !== "ADMIN") return respostaProibida();
     if (formato === "pdf") {
