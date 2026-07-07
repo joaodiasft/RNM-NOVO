@@ -3,47 +3,39 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+interface Correcao {
+  numero: number;
+  nota: unknown;
+  notaSofia: unknown;
+  competencias: string | null;
+  feedback: string | null;
+}
+
 interface Entrega {
   id: string;
   quantidadeEntregue: number;
+  status: string;
   aluno: { nome: string; codigo: string };
-  correcoes: { numero: number; nota: unknown; comentario: string | null }[];
+  correcoes: Correcao[];
 }
 
 export function FormAprovarRedacao({ entregas }: { entregas: Entrega[] }) {
   const router = useRouter();
   const [processando, setProcessando] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Record<string, string>>({});
   const [erro, setErro] = useState("");
-  // notas[entregaId][numero] = valor digitado
-  const [notas, setNotas] = useState<Record<string, Record<number, string>>>({});
-
-  function notaInicial(e: Entrega, numero: number): string {
-    const c = e.correcoes.find((c) => c.numero === numero);
-    return c?.nota != null ? String(c.nota) : "";
-  }
 
   async function aprovar(e: Entrega) {
     setErro("");
     setProcessando(e.id);
     try {
-      const qtd = Math.max(1, e.quantidadeEntregue);
-      const correcoes = Array.from({ length: qtd }, (_, i) => {
-        const numero = i + 1;
-        const digitado = notas[e.id]?.[numero] ?? notaInicial(e, numero);
-        const nota = digitado === "" ? undefined : parseFloat(digitado);
-        return {
-          numero,
-          nota: nota !== undefined && !Number.isNaN(nota) ? nota : undefined,
-          comentario: e.correcoes.find((c) => c.numero === numero)?.comentario ?? "",
-        };
-      }).filter((c) => c.nota !== undefined || c.comentario);
-
       const res = await fetch("/api/redacao", {
-        method: "PATCH",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          acao: "aprovar",
           entregaId: e.id,
-          correcoes: correcoes.length > 0 ? correcoes : undefined,
+          feedback: feedback[e.id] || "",
         }),
       });
       if (!res.ok) {
@@ -59,67 +51,82 @@ export function FormAprovarRedacao({ entregas }: { entregas: Entrega[] }) {
     }
   }
 
+  if (entregas.length === 0) {
+    return (
+      <p className="text-sm text-gray-500">
+        Nenhuma entrega aguardando aprovação.
+      </p>
+    );
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {erro && <p className="msg-erro">{erro}</p>}
       {entregas.map((e) => (
         <div
           key={e.id}
-          className="rounded-xl border border-gray-100 bg-gray-50/50 p-4"
+          className="rounded-xl border border-amber-100 bg-amber-50/40 p-4"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <p className="font-medium text-gray-900">{e.aluno.nome}</p>
-              <p className="text-xs text-gray-400">{e.aluno.codigo}</p>
+              <p className="font-semibold text-gray-900">{e.aluno.nome}</p>
+              <p className="text-xs text-gray-500">{e.aluno.codigo}</p>
             </div>
-            <p className="text-sm text-gray-600">
-              <strong>{e.quantidadeEntregue}</strong> redação(ões)
-            </p>
+            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+              {e.quantidadeEntregue} redação(ões) · {e.status.replace(/_/g, " ")}
+            </span>
           </div>
 
-          {e.quantidadeEntregue > 0 && (
-            <div className="mt-3 flex flex-wrap items-end gap-2">
-              {Array.from({ length: e.quantidadeEntregue }, (_, i) => i + 1).map(
-                (numero) => (
-                  <div key={numero}>
-                    <label className="mb-1 block text-[11px] font-medium text-gray-500">
-                      Nota {numero}ª redação
-                    </label>
-                    <input
-                      inputMode="decimal"
-                      placeholder="0–1000"
-                      value={notas[e.id]?.[numero] ?? notaInicial(e, numero)}
-                      onChange={(ev) =>
-                        setNotas((s) => ({
-                          ...s,
-                          [e.id]: { ...s[e.id], [numero]: ev.target.value },
-                        }))
-                      }
-                      className="w-24 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm"
-                    />
-                  </div>
-                )
-              )}
-              <button
-                onClick={() => aprovar(e)}
-                disabled={processando !== null}
-                className="btn-primary px-4 py-2 text-xs"
-              >
-                {processando === e.id ? "Aprovando..." : "Aprovar"}
-              </button>
+          {e.correcoes.length > 0 && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[320px] text-xs">
+                <thead>
+                  <tr className="text-left text-gray-500">
+                    <th className="pb-1 pr-2">#</th>
+                    <th className="pb-1 pr-2">Professora</th>
+                    <th className="pb-1 pr-2">Sofia</th>
+                    <th className="pb-1">Competências</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {e.correcoes.map((c) => (
+                    <tr key={c.numero} className="border-t border-amber-100/80">
+                      <td className="py-1.5 pr-2 font-medium">{c.numero}</td>
+                      <td className="py-1.5 pr-2">{c.nota != null ? String(c.nota) : "—"}</td>
+                      <td className="py-1.5 pr-2">{c.notaSofia != null ? String(c.notaSofia) : "—"}</td>
+                      <td className="py-1.5 text-gray-600">
+                        {c.competencias
+                          ? JSON.parse(c.competencias).join(" · ")
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-          {e.quantidadeEntregue === 0 && (
-            <div className="mt-3">
-              <button
-                onClick={() => aprovar(e)}
-                disabled={processando !== null}
-                className="btn-primary px-4 py-2 text-xs"
-              >
-                {processando === e.id ? "Aprovando..." : "Aprovar (0 entregas)"}
-              </button>
-            </div>
-          )}
+
+          <div className="mt-3">
+            <label className="field-label">Feedback final para o aluno</label>
+            <textarea
+              rows={2}
+              value={feedback[e.id] ?? ""}
+              onChange={(ev) =>
+                setFeedback((s) => ({ ...s, [e.id]: ev.target.value }))
+              }
+              className="input text-sm"
+              placeholder="Comentário geral sobre o desempenho..."
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => aprovar(e)}
+            disabled={processando !== null}
+            className="btn-primary mt-3 px-4 py-2 text-sm"
+          >
+            {processando === e.id ? "Aprovando..." : "Aprovar e liberar para o aluno"}
+          </button>
         </div>
       ))}
     </div>

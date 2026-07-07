@@ -84,6 +84,7 @@ model Curso {
   corPrimaria String
   turmas      Turma[]
   planos      CursoPlano[]
+  promocoes   Promocao[]
 }
 
 model Turma {
@@ -133,7 +134,8 @@ model Aula {
   modulo          Modulo           @relation(fields: [moduloId], references: [id], onDelete: Cascade)
   data            DateTime
   numero          Int
-  conteudo        String?
+  conteudo        String? // tema da aula (cadastrado pelo admin)
+  materialUrl     String? // PDF/material para quem faltou
   frequencias     Frequencia[]
   entregasRedacao EntregaRedacao[]
 
@@ -148,6 +150,15 @@ model Aluno {
   senhaHash       String
   fotoUrl         String?
   ativo           Boolean                  @default(true)
+  email           String?
+  telefone        String?
+  whatsapp        String?
+  instagram       String?
+  escola          String?
+  serie           String?
+  cpf             String?
+  rg              String?
+  endereco        String?
   responsaveis    AlunoResponsavel[]
   matriculas      MatriculaCurso[]
   acessosExternos AcessoExterno[]
@@ -162,6 +173,7 @@ model Responsavel {
   telefone  String?
   senhaHash String
   fotoUrl   String?
+  ativo     Boolean            @default(true)
   filhos    AlunoResponsavel[]
 }
 
@@ -215,16 +227,20 @@ model MatriculaCurso {
 }
 
 model Pagamento {
-  id               String          @id @default(cuid())
-  matriculaCursoId String
-  matriculaCurso   MatriculaCurso  @relation(fields: [matriculaCursoId], references: [id], onDelete: Cascade)
-  competencia      String
-  valor            Decimal         @db.Decimal(10, 2)
-  formaPagamento   String?
-  status           StatusPagamento @default(PENDENTE)
-  dataPagamento    DateTime?
-  confirmadoPorId  String?
-  observacao       String?
+  id                  String          @id @default(cuid())
+  matriculaCursoId    String
+  matriculaCurso      MatriculaCurso  @relation(fields: [matriculaCursoId], references: [id], onDelete: Cascade)
+  competencia         String
+  valor               Decimal         @db.Decimal(10, 2)
+  valorEscola         Decimal?        @db.Decimal(10, 2)
+  valorProfessor      Decimal?        @db.Decimal(10, 2)
+  percentualEscola    Int?
+  percentualProfessor Int?
+  formaPagamento      String?
+  status              StatusPagamento @default(PENDENTE)
+  dataPagamento       DateTime?
+  confirmadoPorId     String?
+  observacao          String?
 
   @@index([matriculaCursoId])
   @@index([status, competencia])
@@ -259,12 +275,15 @@ model EntregaRedacao {
 }
 
 model CorrecaoRedacao {
-  id         String         @id @default(cuid())
-  entregaId  String
-  entrega    EntregaRedacao @relation(fields: [entregaId], references: [id], onDelete: Cascade)
-  numero     Int
-  nota       Decimal?       @db.Decimal(5, 2)
-  comentario String?
+  id           String         @id @default(cuid())
+  entregaId    String
+  entrega      EntregaRedacao @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+  numero       Int
+  nota         Decimal?       @db.Decimal(5, 2) // nota da professora
+  notaSofia    Decimal?       @db.Decimal(5, 2) // nota da plataforma Sofia
+  competencias String? // JSON [c1..c5] estilo ENEM (0-200 cada)
+  comentario   String?
+  feedback     String? // feedback final — somente admin cadastra
 }
 
 model AcessoExterno {
@@ -289,6 +308,7 @@ model SolicitacaoRematricula {
   dataSolicitacao DateTime          @default(now())
   respondidoPorId String?
   observacao      String?
+  dados           Json? // confirmação de dados do aluno (telefone, whats, instagram, pagamento, responsável)
 
   @@index([status])
   @@index([alunoId])
@@ -302,11 +322,39 @@ model Aviso {
   cursoId     String?
   turmaId     String?
   alunoId     String?
-  enviarPush  Boolean      @default(true)
+  enviarPush  Boolean       @default(true)
   criadoPorId String
-  criadoEm    DateTime     @default(now())
+  criadoEm    DateTime      @default(now())
+  leituras    AvisoLeitura[]
 
   @@index([publicoAlvo, criadoEm])
+}
+
+model AvisoLeitura {
+  id        String   @id @default(cuid())
+  avisoId   String
+  aviso     Aviso    @relation(fields: [avisoId], references: [id], onDelete: Cascade)
+  usuarioId String
+  papel     PapelUsuario
+  lidoEm    DateTime @default(now())
+
+  @@unique([avisoId, usuarioId])
+  @@index([usuarioId])
+}
+
+model Promocao {
+  id                 String    @id @default(cuid())
+  titulo             String
+  descricao          String?
+  cursoId            String?
+  curso              Curso?    @relation(fields: [cursoId], references: [id])
+  percentualDesconto Int       @default(0)
+  dataInicio         DateTime
+  dataFim            DateTime
+  ativo              Boolean   @default(true)
+  criadoEm           DateTime  @default(now())
+
+  @@index([ativo, dataInicio, dataFim])
 }
 
 model LogAuditoria {

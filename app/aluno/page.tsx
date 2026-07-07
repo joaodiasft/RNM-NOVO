@@ -15,6 +15,18 @@ import {
   FREQUENCIA_ALERTA_PERCENTUAL,
   CORES_CURSO,
 } from "@/lib/utils/index";
+import Link from "next/link";
+
+const WHATS_PIX =
+  process.env.WHATSAPP_PIX ||
+  process.env.SMTP_USUARIO?.replace(/@.*/, "") ||
+  "5562999999999";
+
+function corFrequencia(status: string) {
+  if (status === "PRESENTE") return "border-emerald-400 bg-emerald-50 text-emerald-800";
+  if (status.startsWith("REPOSICAO")) return "border-amber-400 bg-amber-50 text-amber-900";
+  return "border-red-300 bg-red-50 text-red-800";
+}
 
 export default async function AlunoDashboard() {
   const session = await auth();
@@ -36,105 +48,146 @@ export default async function AlunoDashboard() {
               },
             },
           },
-          pagamentos: { orderBy: { competencia: "desc" }, take: 3 },
+          pagamentos: { orderBy: { competencia: "desc" }, take: 6 },
         },
       },
-      frequencias: true,
+      frequencias: { include: { aula: true } },
+      entregasRedacao: { where: { status: "APROVADA" } },
     },
   });
 
   const pct = calcularPercentualFrequencia(aluno.frequencias);
   const curso = aluno.matriculas[0]?.turma.curso;
   const cor = curso ? CORES_CURSO[curso.nome]?.primaria : "#d6336c";
+  const moduloNum = aluno.matriculas[0]?.turma.modulos[0]?.numero;
+
+  const freqPorAula = new Map(aluno.frequencias.map((f) => [f.aulaId, f.status]));
 
   const proximasAulas = aluno.matriculas.flatMap((m) =>
-    (m.turma.modulos[0]?.aulas ?? [])
-      .filter((a) => new Date(a.data) >= new Date())
-      .slice(0, 2)
-      .map((a) => ({ id: a.id, turma: m.turma.nome, data: a.data, numero: a.numero }))
+    (m.turma.modulos[0]?.aulas ?? []).map((a) => ({
+      ...a,
+      turma: m.turma.nome,
+      curso: m.turma.curso.nome,
+      status: freqPorAula.get(a.id),
+      passou: new Date(a.data) < new Date(),
+    }))
   );
 
-  const pagamentos = aluno.matriculas.flatMap((m) => m.pagamentos);
+  const pagamentos = aluno.matriculas.flatMap((m) =>
+    m.pagamentos.map((p) => ({
+      ...p,
+      turma: m.turma.nome,
+      curso: m.turma.curso.nome,
+    }))
+  );
+  const temPendente = pagamentos.some(
+    (p) => p.status === "PENDENTE" || p.status === "ATRASADO"
+  );
 
   return (
     <DashboardShell
-      titulo={`Olá, ${aluno.nome.split(" ")[0]}!`}
+      titulo={aluno.nome}
       corAccent={cor}
       userName={aluno.nome}
       papel="ALUNO"
+      extra={
+        <span className="text-sm font-normal text-gray-500">
+          Matrícula {aluno.codigo}
+        </span>
+      }
     >
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Frequência" value={`${pct}%`} icone="check-circle" cor={cor} />
         <StatCard
-          label="Frequência"
-          value={`${pct}%`}
-          cor={pct < FREQUENCIA_ALERTA_PERCENTUAL ? "#dc2626" : cor}
-          icone="check-circle"
+          label="Módulo"
+          value={moduloNum ? `#${moduloNum}` : "—"}
+          icone="calendar"
         />
-        <StatCard label="Matrícula" value={aluno.codigo} icone="user" />
+        <StatCard
+          label="Redações aprovadas"
+          value={aluno.entregasRedacao.length}
+          icone="pencil"
+        />
+        <StatCard label="Cursos ativos" value={aluno.matriculas.length} icone="book" />
       </div>
 
       {pct < FREQUENCIA_ALERTA_PERCENTUAL && (
         <div className="mb-4">
           <AlertBanner tipo="warn">
-            Sua frequência está abaixo de {FREQUENCIA_ALERTA_PERCENTUAL}%. Procure a
-            secretaria para agendar reposições.
-          </AlertBanner>
+          Frequência abaixo de {FREQUENCIA_ALERTA_PERCENTUAL}%. Agende reposição com a
+          secretaria.
+        </AlertBanner>
         </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Meus cursos">
           {aluno.matriculas.length === 0 ? (
-            <EmptyState
-              icone="book"
-              titulo="Nenhuma matrícula ativa"
-              descricao="Fale com a secretaria para se matricular em um curso."
-            />
+            <EmptyState icone="book" titulo="Sem matrícula ativa" />
           ) : (
             <ul className="space-y-3">
               {aluno.matriculas.map((m) => {
-                const info = CORES_CURSO[m.turma.curso.nome];
+                const pend = m.pagamentos.some(
+                  (p) => p.status === "PENDENTE" || p.status === "ATRASADO"
+                );
                 return (
                   <li
                     key={m.id}
-                    className="flex items-center justify-between gap-2 rounded-xl border-l-4 border border-gray-100 bg-gray-50/60 px-4 py-3"
-                    style={{ borderLeftColor: info?.primaria }}
+                    className="rounded-xl border border-gray-100 p-4"
+                    style={{ borderLeftWidth: 4, borderLeftColor: CORES_CURSO[m.turma.curso.nome]?.primaria }}
                   >
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        Turma {m.turma.nome}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {m.turma.diaSemana} · {m.turma.horaInicio}–{m.turma.horaFim}
-                      </p>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-semibold">Turma {m.turma.nome}</p>
+                        <p className="text-xs text-gray-500">
+                          {m.turma.diaSemana} · {m.turma.horaInicio}–{m.turma.horaFim}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <CursoBadge curso={m.turma.curso.nome} />
+                        <Badge tom={pend ? "amber" : "green"}>
+                          {pend ? "Pagamento pendente" : "Ativo"}
+                        </Badge>
+                      </div>
                     </div>
-                    <CursoBadge curso={m.turma.curso.nome} />
                   </li>
                 );
               })}
             </ul>
           )}
+          <Link href="/aluno/cursos" className="mt-3 inline-block text-xs font-semibold text-indigo-600">
+            Ver detalhes dos cursos →
+          </Link>
         </Card>
 
-        <Card title="Próximas aulas">
+        <Card title="Próximas aulas e chamada">
           {proximasAulas.length === 0 ? (
-            <EmptyState
-              icone="calendar"
-              titulo="Nenhuma aula agendada"
-              descricao="Quando o módulo do mês for gerado, suas aulas aparecem aqui."
-            />
+            <EmptyState icone="calendar" titulo="Sem aulas no módulo" />
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-2 max-h-72 overflow-y-auto">
               {proximasAulas.map((a) => (
                 <li
                   key={a.id}
-                  className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-3 text-sm"
+                  className={`flex items-center justify-between rounded-lg border-l-4 px-3 py-2 text-sm ${
+                    a.status
+                      ? corFrequencia(a.status)
+                      : a.passou
+                        ? "border-gray-200 bg-gray-50"
+                        : "border-indigo-200 bg-indigo-50/50"
+                  }`}
                 >
-                  <span className="font-medium text-gray-800">
-                    Turma {a.turma} · Aula {a.numero}
+                  <span>
+                    {a.turma} · Aula {a.numero}
+                    <span className="ml-1 text-xs opacity-70">
+                      {new Date(a.data).toLocaleDateString("pt-BR")}
+                    </span>
                   </span>
-                  <span className="text-gray-500">
-                    {new Date(a.data).toLocaleDateString("pt-BR")}
+                  <span className="text-xs font-semibold uppercase">
+                    {a.status
+                      ? a.status.replace(/_/g, " ")
+                      : a.passou
+                        ? "Sem chamada"
+                        : "Agendada"}
                   </span>
                 </li>
               ))}
@@ -143,28 +196,50 @@ export default async function AlunoDashboard() {
         </Card>
       </div>
 
-      <Card title="Financeiro" className="mt-4" descricao="Últimas competências">
+      <Card title="Financeiro" className="mt-4">
         {pagamentos.length === 0 ? (
-          <EmptyState icone="currency" titulo="Nenhum pagamento registrado" />
+          <EmptyState icone="currency" titulo="Nenhum lançamento" />
         ) : (
-          <ul className="divide-y divide-gray-100">
-            {pagamentos.map((p) => (
-              <li key={p.id} className="flex items-center justify-between py-2.5 text-sm">
-                <span className="font-medium text-gray-700">{p.competencia}</span>
-                <Badge
-                  tom={
-                    p.status === "CONFIRMADO"
-                      ? "green"
-                      : p.status === "ATRASADO"
-                        ? "red"
-                        : "amber"
-                  }
+          <>
+            <ul className="divide-y divide-gray-100">
+              {pagamentos.map((p) => (
+                <li
+                  key={p.id}
+                  className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
                 >
-                  {p.status}
-                </Badge>
-              </li>
-            ))}
-          </ul>
+                  <div>
+                    <p className="font-medium">{p.competencia}</p>
+                    <p className="text-xs text-gray-500">
+                      {p.turma} · {Number(p.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </p>
+                  </div>
+                  <Badge
+                    tom={
+                      p.status === "CONFIRMADO"
+                        ? "green"
+                        : p.status === "ATRASADO"
+                          ? "red"
+                          : "amber"
+                    }
+                  >
+                    {p.status}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+            {temPendente && (
+              <a
+                href={`https://wa.me/${WHATS_PIX.replace(/\D/g, "")}?text=${encodeURIComponent(
+                  `Olá! Sou o aluno ${aluno.nome} (${aluno.codigo}) e gostaria de regularizar meu pagamento via PIX.`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Regularizar via WhatsApp (PIX)
+              </a>
+            )}
+          </>
         )}
       </Card>
     </DashboardShell>

@@ -33,6 +33,18 @@ export default async function FinanceiroPage() {
   const somaConfirmados = confirmados.reduce((s, p) => s + Number(p.valor), 0);
   const somaAtrasados = atrasados.reduce((s, p) => s + Number(p.valor), 0);
 
+  const repassePorCurso = confirmados.reduce(
+    (acc, p) => {
+      const curso = p.matriculaCurso.turma.curso.nome;
+      if (!acc[curso]) acc[curso] = { escola: 0, professor: 0, total: 0 };
+      acc[curso].total += Number(p.valor);
+      acc[curso].escola += Number(p.valorEscola ?? 0);
+      acc[curso].professor += Number(p.valorProfessor ?? 0);
+      return acc;
+    },
+    {} as Record<string, { escola: number; professor: number; total: number }>
+  );
+
   return (
     <DashboardShell titulo="Financeiro" userName={session.user.nome} papel="ADMIN">
       <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
@@ -60,6 +72,29 @@ export default async function FinanceiroPage() {
           </AlertBanner>
         </div>
       )}
+
+      <Card
+        title="Repasse por curso (confirmados)"
+        descricao="Exatas: 30% escola / 70% professor · Matemática: 20% / 80% · Redação: 100% escola"
+        className="mb-4"
+      >
+        {Object.keys(repassePorCurso).length === 0 ? (
+          <EmptyState icone="currency" titulo="Nenhum repasse calculado ainda" descricao="Confirme pagamentos para ver a divisão." />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-3">
+            {Object.entries(repassePorCurso).map(([curso, v]) => (
+              <div key={curso} className="rounded-xl border border-gray-100 p-4 text-sm">
+                <p className="font-semibold text-gray-900">{curso}</p>
+                <p className="mt-2 text-gray-600">
+                  Total: R$ {v.total.toFixed(2)}
+                </p>
+                <p className="text-emerald-700">Escola: R$ {v.escola.toFixed(2)}</p>
+                <p className="text-indigo-700">Professor: R$ {v.professor.toFixed(2)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Confirmar pagamento">

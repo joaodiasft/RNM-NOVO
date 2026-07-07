@@ -20,10 +20,12 @@ import {
   confirmarPagamentoSchema,
   acessoExternoSchema,
   avisoSchema,
-  solicitarRematriculaSchema,
   responderRematriculaSchema,
+  criarMatriculaSchema,
+  rematriculaCompletaSchema,
   validar,
 } from "@/lib/validacao";
+import { criarMatricula } from "@/lib/services/usuarios";
 
 export async function GET(request: Request) {
   const { session, error } = await requireApiAuth([
@@ -200,8 +202,22 @@ export async function POST(request: Request) {
         );
       }
 
+      // Matrícula direta feita pelo admin (após cadastrar o aluno)
+      case "criar_matricula": {
+        if (papel !== "ADMIN") return respostaProibida();
+        const body = validar(criarMatriculaSchema, bruto);
+        if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
+        return NextResponse.json(
+          await criarMatricula({
+            ...body.data,
+            usuarioId: session!.user.id,
+            papel,
+          })
+        );
+      }
+
       case "solicitar_rematricula": {
-        const body = validar(solicitarRematriculaSchema, bruto);
+        const body = validar(rematriculaCompletaSchema, bruto);
         if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
 
         // Escopo: aluno só solicita para si; responsável só para filho vinculado
@@ -215,11 +231,30 @@ export async function POST(request: Request) {
           }
           alunoId = alvo;
         } else {
-          if (!body.data.alunoId) {
-            return NextResponse.json({ erro: "Informe o aluno" }, { status: 400 });
-          }
-          alunoId = body.data.alunoId;
+          return respostaProibida("Admin cria matrícula direto em Matrículas");
         }
+
+        // Bloqueio: só uma solicitação pendente por vez
+        const pendente = await prisma.solicitacaoRematricula.findFirst({
+          where: { alunoId, status: "PENDENTE" },
+        });
+        if (pendente) {
+          return NextResponse.json(
+            { erro: "Você já tem uma solicitação aguardando análise do admin" },
+            { status: 409 }
+          );
+        }
+
+        // Atualiza os dados confirmados no cadastro do aluno
+        await prisma.aluno.update({
+          where: { id: alunoId },
+          data: {
+            nome: body.data.nome,
+            telefone: body.data.telefone,
+            whatsapp: body.data.whatsapp || null,
+            instagram: body.data.instagram || null,
+          },
+        });
 
         return NextResponse.json(
           await solicitarRematricula({
@@ -228,8 +263,30 @@ export async function POST(request: Request) {
             planoId: body.data.planoId,
             usuarioId: session!.user.id,
             papel,
+            dados: {
+              nome: body.data.nome,
+              telefone: body.data.telefone,
+              whatsapp: body.data.whatsapp || null,
+              instagram: body.data.instagram || null,
+              formaPagamento: body.data.formaPagamento,
+              turma2Id: body.data.turma2Id || null,
+              responsavelNome: body.data.responsavelNome || null,
+              responsavelTelefone: body.data.responsavelTelefone || null,
+            },
           })
         );
+      }
+
+      case "remover_acesso": {
+        if (papel !== "ADMIN") return respostaProibida();
+        const id = typeof bruto === "object" && bruto !== null
+          ? (bruto as Record<string, unknown>).acessoId
+          : null;
+        if (typeof id !== "string" || id.length < 10) {
+          return NextResponse.json({ erro: "Acesso inválido" }, { status: 400 });
+        }
+        await prisma.acessoExterno.delete({ where: { id } });
+        return NextResponse.json({ ok: true });
       }
 
       case "responder_rematricula": {

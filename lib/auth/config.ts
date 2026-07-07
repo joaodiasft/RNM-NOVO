@@ -76,6 +76,7 @@ export const authConfig: NextAuthConfig = {
             });
             if (!aluno) return null;
             for (const r of aluno.responsaveis) {
+              if (!r.responsavel.ativo) continue;
               if (await verificarSenha(senha, r.responsavel.senhaHash)) {
                 return {
                   id: r.responsavel.id,

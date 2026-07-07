@@ -195,11 +195,19 @@ export async function lancarFrequencia(data: {
   return freq;
 }
 
-export async function lancarEntregaRedacao(data: {
+/**
+ * Fluxo de redação:
+ * 1. ADMIN registra a quantidade entregue (status AGUARDANDO_NOTAS)
+ * 2. ALUNO (ou admin) lança as notas: professora + Sofia + competências ENEM
+ *    (status AGUARDANDO_APROVACAO)
+ * 3. ADMIN aprova com feedback (status APROVADA) — só então o aluno vê o
+ *    desempenho consolidado
+ */
+
+export async function registrarEntregaRedacao(data: {
   aulaId: string;
   alunoId: string;
   quantidadeEntregue: number;
-  correcoes?: { numero: number; nota?: number; comentario?: string }[];
   usuarioId: string;
   papel: PapelUsuario;
 }) {
@@ -207,65 +215,124 @@ export async function lancarEntregaRedacao(data: {
     where: { aulaId_alunoId: { aulaId: data.aulaId, alunoId: data.alunoId } },
     update: {
       quantidadeEntregue: data.quantidadeEntregue,
-      status: "AGUARDANDO_APROVACAO",
+      status: "AGUARDANDO_NOTAS",
     },
     create: {
       aulaId: data.aulaId,
       alunoId: data.alunoId,
       quantidadeEntregue: data.quantidadeEntregue,
+      status: "AGUARDANDO_NOTAS",
     },
   });
-
-  if (data.correcoes?.length) {
-    await prisma.correcaoRedacao.deleteMany({ where: { entregaId: entrega.id } });
-    for (const c of data.correcoes) {
-      await prisma.correcaoRedacao.create({
-        data: {
-          entregaId: entrega.id,
-          numero: c.numero,
-          nota: c.nota,
-          comentario: c.comentario,
-        },
-      });
-    }
-  }
 
   registrarLog({
     nivel: "INFO",
     categoria: "REDACAO",
-    acao: "ENTREGA_LANCADA",
+    acao: "ENTREGA_REGISTRADA",
+    usuarioId: data.usuarioId,
+    papel: data.papel,
+    entidade: "EntregaRedacao",
+    entidadeId: entrega.id,
+    detalhes: { quantidade: data.quantidadeEntregue },
+  });
+
+  return entrega;
+}
+
+export interface NotaRedacao {
+  numero: number;
+  nota?: number | null; // professora
+  notaSofia?: number | null;
+  competencias?: number[] | null; // 5 competências estilo ENEM (0-200)
+}
+
+export async function lancarNotasRedacao(data: {
+  entregaId: string;
+  correcoes: NotaRedacao[];
+  usuarioId: string;
+  papel: PapelUsuario;
+}) {
+  const entrega = await prisma.entregaRedacao.findUnique({
+    where: { id: data.entregaId },
+  });
+  if (!entrega) throw new Error("Entrega não encontrada");
+  if (entrega.status === "APROVADA") {
+    throw new Error("Entrega já aprovada — peça ao admin para reabrir");
+  }
+  if (entrega.quantidadeEntregue === 0) {
+    throw new Error("Nenhuma redação registrada nesta aula");
+  }
+
+  for (const c of data.correcoes) {
+    if (c.numero > entrega.quantidadeEntregue) {
+      throw new Error(`Só foram registradas ${entrega.quantidadeEntregue} redação(ões)`);
+    }
+    // preserva o feedback do admin já existente
+    const existente = await prisma.correcaoRedacao.findFirst({
+      where: { entregaId: entrega.id, numero: c.numero },
+    });
+    const valores = {
+      nota: c.nota ?? null,
+      notaSofia: c.notaSofia ?? null,
+      competencias: c.competencias ? JSON.stringify(c.competencias) : null,
+    };
+    if (existente) {
+      await prisma.correcaoRedacao.update({
+        where: { id: existente.id },
+        data: valores,
+      });
+    } else {
+      await prisma.correcaoRedacao.create({
+        data: { entregaId: entrega.id, numero: c.numero, ...valores },
+      });
+    }
+  }
+
+  const atualizada = await prisma.entregaRedacao.update({
+    where: { id: entrega.id },
+    data: { status: "AGUARDANDO_APROVACAO" },
+  });
+
+  registrarLog({
+    nivel: "INFO",
+    categoria: "REDACAO",
+    acao: "NOTAS_LANCADAS",
     usuarioId: data.usuarioId,
     papel: data.papel,
     entidade: "EntregaRedacao",
     entidadeId: entrega.id,
   });
 
-  return entrega;
+  return atualizada;
 }
 
 export async function aprovarEntregaRedacao(
   entregaId: string,
   usuarioId: string,
   papel: PapelUsuario,
-  correcoes?: { numero: number; nota?: number; comentario?: string }[]
+  feedback?: string
 ) {
-  // O admin pode registrar/ajustar as notas no momento da aprovação
-  if (correcoes?.length) {
-    await prisma.correcaoRedacao.deleteMany({ where: { entregaId } });
-    await prisma.correcaoRedacao.createMany({
-      data: correcoes.map((c) => ({
-        entregaId,
-        numero: c.numero,
-        nota: c.nota,
-        comentario: c.comentario,
-      })),
-    });
-  }
-
   const entrega = await prisma.entregaRedacao.update({
     where: { id: entregaId },
     data: { status: "APROVADA" },
   });
+
+  // Feedback final do admin fica na 1ª correção (cria se não existir)
+  if (feedback) {
+    const primeira = await prisma.correcaoRedacao.findFirst({
+      where: { entregaId, numero: 1 },
+    });
+    if (primeira) {
+      await prisma.correcaoRedacao.update({
+        where: { id: primeira.id },
+        data: { feedback },
+      });
+    } else {
+      await prisma.correcaoRedacao.create({
+        data: { entregaId, numero: 1, feedback },
+      });
+    }
+  }
 
   registrarLog({
     nivel: "INFO",
@@ -278,4 +345,33 @@ export async function aprovarEntregaRedacao(
   });
 
   return entrega;
+}
+
+/** Admin define o tema e o material (PDF) de uma aula. */
+export async function atualizarAula(data: {
+  aulaId: string;
+  conteudo?: string;
+  materialUrl?: string;
+  usuarioId: string;
+  papel: PapelUsuario;
+}) {
+  const aula = await prisma.aula.update({
+    where: { id: data.aulaId },
+    data: {
+      conteudo: data.conteudo ?? undefined,
+      materialUrl: data.materialUrl === "" ? null : data.materialUrl ?? undefined,
+    },
+  });
+
+  registrarLog({
+    nivel: "INFO",
+    categoria: "ACADEMICO",
+    acao: "AULA_ATUALIZADA",
+    usuarioId: data.usuarioId,
+    papel: data.papel,
+    entidade: "Aula",
+    entidadeId: aula.id,
+  });
+
+  return aula;
 }

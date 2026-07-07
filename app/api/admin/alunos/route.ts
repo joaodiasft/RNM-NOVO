@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireApiAuth, handleApiError } from "@/lib/api-helpers";
-import { criarAluno, criarResponsavel, criarMatricula } from "@/lib/services/usuarios";
+import {
+  criarAluno,
+  criarResponsavel,
+  criarMatricula,
+  vincularResponsavelExistente,
+} from "@/lib/services/usuarios";
 import { prisma } from "@/lib/prisma";
 import { hashSenha } from "@/lib/crypto";
 import { novoAlunoSchema, alunoPatchSchema, validar } from "@/lib/validacao";
@@ -31,40 +36,70 @@ export async function POST(request: Request) {
       return NextResponse.json({ erro: body.erro }, { status: 400 });
     }
     const dados = body.data;
+    const quem = { usuarioId: session!.user.id, papel: session!.user.papel };
 
     const aluno = await criarAluno({
       nome: dados.nome,
-      senha: dados.senha,
+      senha: dados.senha || undefined,
       dataNascimento: dados.dataNascimento,
-      usuarioId: session!.user.id,
-      papel: session!.user.papel,
+      telefone: dados.telefone,
+      email: dados.email || undefined,
+      whatsapp: dados.whatsapp || undefined,
+      instagram: dados.instagram || undefined,
+      escola: dados.escola,
+      serie: dados.serie,
+      cpf: dados.cpf || undefined,
+      rg: dados.rg || undefined,
+      endereco: dados.endereco || undefined,
+      ...quem,
     });
 
-    let responsavelInfo = null;
-    if (dados.responsavel?.nome) {
-      responsavelInfo = await criarResponsavel({
-        nome: dados.responsavel.nome,
-        telefone: dados.responsavel.telefone || undefined,
-        alunoId: aluno.id,
-        parentesco: dados.responsavel.parentesco || undefined,
-        usuarioId: session!.user.id,
-        papel: session!.user.papel,
-      });
+    // Responsável: novo cadastro (com acesso) ou vínculo com um existente
+    let senhaResponsavel: string | undefined;
+    let responsavelNome: string | undefined;
+    if (dados.responsavel) {
+      if (dados.responsavel.modo === "novo") {
+        const r = await criarResponsavel({
+          nome: dados.responsavel.nome,
+          telefone: dados.responsavel.telefone,
+          alunoId: aluno.id,
+          parentesco: dados.responsavel.parentesco || undefined,
+          senha: dados.responsavel.senha || undefined,
+          ...quem,
+        });
+        senhaResponsavel = r.senhaGerada;
+        responsavelNome = r.responsavel.nome;
+      } else {
+        const r = await vincularResponsavelExistente({
+          responsavelId: dados.responsavel.responsavelId,
+          alunoId: aluno.id,
+          parentesco: dados.responsavel.parentesco || undefined,
+          ...quem,
+        });
+        responsavelNome = r.nome;
+      }
     }
 
-    if (dados.turmaId && dados.planoId) {
+    // Matrícula no curso 1 (obrigatória) e curso 2 (opcional)
+    await criarMatricula({
+      alunoId: aluno.id,
+      turmaId: dados.turmaId,
+      planoId: dados.planoId,
+      ...quem,
+    });
+    if (dados.turma2Id) {
       await criarMatricula({
         alunoId: aluno.id,
-        turmaId: dados.turmaId,
-        planoId: dados.planoId,
-        usuarioId: session!.user.id,
-        papel: session!.user.papel,
+        turmaId: dados.turma2Id,
+        planoId: dados.plano2Id || dados.planoId,
+        ...quem,
       });
     }
 
     return NextResponse.json({
       aluno,
-      senhaResponsavel: responsavelInfo?.senhaGerada,
+      responsavelNome,
+      senhaResponsavel,
     });
   } catch (err) {
     return handleApiError(err);

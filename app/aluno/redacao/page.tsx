@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { DashboardShell, Card, EmptyState, Badge } from "@/components/DashboardShell";
-import { FormEntregaRedacao } from "@/components/forms/FormEntregaRedacao";
+import { DashboardShell, Card, Badge, EmptyState } from "@/components/DashboardShell";
 
 export default async function AlunoRedacaoPage() {
   const session = await auth();
@@ -20,7 +19,9 @@ export default async function AlunoRedacaoPage() {
           modulos: {
             orderBy: { numero: "desc" },
             take: 1,
-            include: { aulas: { orderBy: { data: "desc" }, take: 4 } },
+            include: {
+              aulas: { orderBy: { numero: "asc" } },
+            },
           },
         },
       },
@@ -34,50 +35,128 @@ export default async function AlunoRedacaoPage() {
           <EmptyState
             icone="pencil"
             titulo="Você não está matriculado em Redação"
-            descricao="Fale com a secretaria se quiser participar do curso de Redação."
           />
         </Card>
       </DashboardShell>
     );
   }
 
-  const aulas = matricula.turma.modulos[0]?.aulas ?? [];
+  const modulo = matricula.turma.modulos[0];
+  const aulas = modulo?.aulas ?? [];
 
-  // Entregas já lançadas pelo aluno nessas aulas
   const entregas = await prisma.entregaRedacao.findMany({
-    where: { alunoId: session.user.id, aulaId: { in: aulas.map((a) => a.id) } },
+    where: {
+      alunoId: session.user.id,
+      aulaId: { in: aulas.map((a) => a.id) },
+    },
+    include: { correcoes: { orderBy: { numero: "asc" } } },
   });
-  const entregaPorAula = new Map(entregas.map((e) => [e.aulaId, e]));
+  const mapa = new Map(entregas.map((e) => [e.aulaId, e]));
 
   return (
-    <DashboardShell titulo="Entrega de Redação" userName={session.user.nome} papel="ALUNO">
+    <DashboardShell
+      titulo="Minhas Redações"
+      userName={session.user.nome}
+      papel="ALUNO"
+    >
+      {modulo && (
+        <p className="mb-4 text-sm text-gray-600">
+          Módulo <strong>{modulo.numero}</strong> · Turma {matricula.turma.nome}
+        </p>
+      )}
+
       {aulas.length === 0 ? (
         <Card>
-          <EmptyState
-            icone="calendar"
-            titulo="Nenhuma aula disponível"
-            descricao="Quando o módulo do mês for gerado, as aulas aparecem aqui."
-          />
+          <EmptyState icone="calendar" titulo="Nenhuma aula no módulo atual" />
         </Card>
       ) : (
         <div className="space-y-4">
           {aulas.map((a) => {
-            const entrega = entregaPorAula.get(a.id);
+            const e = mapa.get(a.id);
+            const aprovada = e?.status === "APROVADA";
             return (
               <Card
                 key={a.id}
                 title={`Aula ${a.numero} — ${new Date(a.data).toLocaleDateString("pt-BR")}`}
+                descricao={a.conteudo || "Tema a definir pela secretaria"}
                 acao={
-                  entrega ? (
-                    <Badge tom={entrega.status === "APROVADA" ? "green" : "amber"}>
-                      {entrega.status === "APROVADA"
-                        ? `Aprovada (${entrega.quantidadeEntregue})`
-                        : "Aguardando aprovação"}
+                  e ? (
+                    <Badge
+                      tom={
+                        aprovada ? "green" : e.status === "AGUARDANDO_NOTAS" ? "amber" : "blue"
+                      }
+                    >
+                      {aprovada
+                        ? "Liberado"
+                        : e.status.replace(/_/g, " ")}
                     </Badge>
-                  ) : undefined
+                  ) : (
+                    <Badge tom="gray">Sem registro</Badge>
+                  )
                 }
               >
-                <FormEntregaRedacao aulaId={a.id} />
+                {!e && (
+                  <p className="text-sm text-gray-500">
+                    A secretaria ainda não registrou suas entregas nesta aula.
+                  </p>
+                )}
+                {e && !aprovada && (
+                  <p className="text-sm text-amber-800">
+                    {e.quantidadeEntregue} redação(ões) registradas — aguardando
+                    correção e aprovação do admin para ver notas.
+                  </p>
+                )}
+                {e && aprovada && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-gray-700">
+                      Entregues: {e.quantidadeEntregue}
+                    </p>
+                    {e.correcoes.map((c) => {
+                      const comps = c.competencias
+                        ? (JSON.parse(c.competencias) as number[])
+                        : null;
+                      return (
+                        <div
+                          key={c.numero}
+                          className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 text-sm"
+                        >
+                          <p className="font-semibold text-gray-900">
+                            Redação {c.numero}
+                          </p>
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                            <span>
+                              Professora:{" "}
+                              <strong>{c.nota != null ? String(c.nota) : "—"}</strong>
+                            </span>
+                            <span>
+                              Sofia: <strong>{c.notaSofia != null ? String(c.notaSofia) : "—"}</strong>
+                            </span>
+                          </div>
+                          {comps && (
+                            <p className="mt-2 text-xs text-gray-600">
+                              Competências: {comps.join(" · ")}
+                            </p>
+                          )}
+                          {c.feedback && (
+                            <p className="mt-2 rounded-lg bg-white p-2 text-xs text-gray-700">
+                              {c.feedback}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {a.materialUrl && (
+                  <a
+                    href={a.materialUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-block text-xs font-semibold text-indigo-600 hover:underline"
+                  >
+                    Baixar material da aula (PDF)
+                  </a>
+                )}
               </Card>
             );
           })}

@@ -4,11 +4,16 @@ import {
   criarTurma,
   criarProfessor,
   gerarProximoModulo,
+  atualizarAula,
 } from "@/lib/services/academico";
+import { prisma } from "@/lib/prisma";
 import {
   novaTurmaSchema,
   novoProfessorSchema,
   gerarModuloSchema,
+  aulaTemaSchema,
+  promocaoSchema,
+  alternarPromocaoSchema,
   validar,
 } from "@/lib/validacao";
 
@@ -63,6 +68,47 @@ export async function POST(request: Request) {
             papel: session!.user.papel,
           })
         );
+      }
+
+      // Admin define tema e material (PDF) de cada aula
+      case "atualizar_aula": {
+        const body = validar(aulaTemaSchema, bruto);
+        if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
+        return NextResponse.json(
+          await atualizarAula({
+            aulaId: body.data.aulaId,
+            conteudo: body.data.conteudo || undefined,
+            materialUrl: body.data.materialUrl ?? undefined,
+            usuarioId: session!.user.id,
+            papel: session!.user.papel,
+          })
+        );
+      }
+
+      case "criar_promocao": {
+        const body = validar(promocaoSchema, bruto);
+        if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
+        const promocao = await prisma.promocao.create({
+          data: {
+            titulo: body.data.titulo,
+            descricao: body.data.descricao || null,
+            cursoId: body.data.cursoId || null,
+            percentualDesconto: body.data.percentualDesconto ?? 0,
+            dataInicio: new Date(body.data.dataInicio + "T00:00:00"),
+            dataFim: new Date(body.data.dataFim + "T23:59:59"),
+          },
+        });
+        return NextResponse.json(promocao);
+      }
+
+      case "alternar_promocao": {
+        const body = validar(alternarPromocaoSchema, bruto);
+        if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
+        const promocao = await prisma.promocao.update({
+          where: { id: body.data.promocaoId },
+          data: { ativo: body.data.ativo },
+        });
+        return NextResponse.json(promocao);
       }
 
       default:

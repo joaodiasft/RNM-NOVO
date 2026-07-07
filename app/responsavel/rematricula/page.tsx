@@ -8,7 +8,6 @@ export default async function ResponsavelRematriculaPage() {
   const session = await auth();
   if (!session || session.user.papel !== "RESPONSAVEL") redirect("/login");
 
-  // Usa o filho selecionado ou o primeiro vinculado
   const vinculo = await prisma.alunoResponsavel.findFirst({
     where: {
       responsavelId: session.user.id,
@@ -16,7 +15,16 @@ export default async function ResponsavelRematriculaPage() {
         ? { alunoId: session.user.alunoSelecionadoId }
         : {}),
     },
-    include: { aluno: true },
+    include: {
+      aluno: {
+        include: {
+          matriculas: {
+            where: { status: "ATIVA" },
+            include: { turma: { include: { curso: true } } },
+          },
+        },
+      },
+    },
   });
 
   if (!vinculo) {
@@ -29,18 +37,43 @@ export default async function ResponsavelRematriculaPage() {
     );
   }
 
-  const [turmas, planos] = await Promise.all([
-    prisma.turma.findMany({ where: { ativa: true }, orderBy: { nome: "asc" } }),
+  const aluno = vinculo.aluno;
+  const [turmas, planos, solicitacoes] = await Promise.all([
+    prisma.turma.findMany({
+      where: { ativa: true },
+      include: { curso: true },
+      orderBy: { nome: "asc" },
+    }),
     prisma.plano.findMany({ where: { ativo: true } }),
+    prisma.solicitacaoRematricula.findMany({
+      where: { alunoId: aluno.id, status: "PENDENTE" },
+    }),
   ]);
+
+  const curso1 = aluno.matriculas[0]?.turma.curso.nome;
+  const turmasC1 = turmas
+    .filter((t) => !curso1 || t.curso.nome === curso1)
+    .map((t) => ({ id: t.id, nome: t.nome, curso: t.curso.nome }));
+  const turmasC2 = turmas
+    .filter((t) => aluno.matriculas.length > 1 && t.curso.nome !== curso1)
+    .map((t) => ({ id: t.id, nome: t.nome, curso: t.curso.nome }));
 
   return (
     <DashboardShell titulo="Rematrícula" userName={session.user.nome} papel="RESPONSAVEL">
-      <Card
-        title={`Solicitar para ${vinculo.aluno.nome.split(" ")[0]}`}
-        descricao="A secretaria analisa e confirma a rematrícula"
-      >
-        <FormRematriculaAluno alunoId={vinculo.alunoId} turmas={turmas} planos={planos} />
+      <Card title={`Solicitar para ${aluno.nome}`}>
+        <FormRematriculaAluno
+          alunoId={aluno.id}
+          alunoNome={aluno.nome}
+          alunoTelefone={aluno.telefone}
+          alunoWhatsapp={aluno.whatsapp}
+          alunoInstagram={aluno.instagram}
+          responsavelNome={session.user.nome}
+          responsavelTelefone={null}
+          turmas={turmasC1.length ? turmasC1 : turmas.map((t) => ({ id: t.id, nome: t.nome, curso: t.curso.nome }))}
+          turmas2={turmasC2}
+          planos={planos}
+          bloqueado={solicitacoes.length > 0}
+        />
       </Card>
     </DashboardShell>
   );

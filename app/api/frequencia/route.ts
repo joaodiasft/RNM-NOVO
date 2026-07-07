@@ -3,7 +3,6 @@ import {
   requireApiAuth,
   handleApiError,
   respostaProibida,
-  turmaDaAulaSeProfessorLeciona,
   professorLecionaTurma,
   alunoDoResponsavel,
 } from "@/lib/api-helpers";
@@ -12,7 +11,8 @@ import { prisma } from "@/lib/prisma";
 import { frequenciaSchema, validar } from "@/lib/validacao";
 
 export async function POST(request: Request) {
-  const { session, error } = await requireApiAuth(["ADMIN", "PROFESSOR"]);
+  // Regra do negócio: SOMENTE o admin lança/edita frequência
+  const { session, error } = await requireApiAuth(["ADMIN"]);
   if (error) return error;
 
   try {
@@ -22,17 +22,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ erro: body.erro }, { status: 400 });
     }
     const dados = body.data;
-
-    // Professor só lança frequência nas turmas em que leciona
-    if (session!.user.papel === "PROFESSOR") {
-      const turmaId = await turmaDaAulaSeProfessorLeciona(
-        session!.user.id,
-        dados.aulaId
-      );
-      if (!turmaId) {
-        return respostaProibida("Você não leciona na turma desta aula");
-      }
-    }
 
     const freq = await lancarFrequencia({
       aulaId: dados.aulaId,

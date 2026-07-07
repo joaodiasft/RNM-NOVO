@@ -24,19 +24,140 @@ export const adminVerifySchema = z.object({
   codigo: z.string().regex(/^\d{6}$/, "Código deve ter 6 dígitos"),
 });
 
+const textoOpcional = (max: number) =>
+  z.string().trim().max(max).optional().or(z.literal(""));
+
 export const novoAlunoSchema = z.object({
+  // Obrigatórios
   nome: z.string().trim().min(2, "Nome muito curto").max(120),
-  senha: z.string().min(6, "Senha deve ter no mínimo 6 caracteres").max(64).optional(),
-  dataNascimento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  turmaId: cuid.optional(),
-  planoId: cuid.optional(),
+  telefone: z.string().trim().min(8, "Telefone obrigatório").max(30),
+  escola: z.string().trim().min(2, "Informe onde o aluno estuda").max(120),
+  serie: z.string().trim().min(1, "Informe a série atual").max(40),
+  dataNascimento: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Data de nascimento obrigatória"),
+  turmaId: cuid, // curso 1 / turma 1
+  planoId: cuid,
+  // Opcionais
+  email: z.string().trim().email("E-mail inválido").max(120).optional().or(z.literal("")),
+  senha: z.string().min(6, "Senha deve ter no mínimo 6 caracteres").max(64).optional().or(z.literal("")),
+  whatsapp: textoOpcional(30),
+  instagram: textoOpcional(60),
+  cpf: textoOpcional(20),
+  rg: textoOpcional(20),
+  endereco: textoOpcional(200),
+  turma2Id: cuid.optional().or(z.literal("")), // curso 2 / turma 2
+  plano2Id: cuid.optional().or(z.literal("")),
+  // Responsável: novo cadastro ou vínculo com um já existente no sistema
   responsavel: z
-    .object({
-      nome: z.string().trim().min(2).max(120),
-      telefone: z.string().trim().max(30).optional().or(z.literal("")),
-      parentesco: z.string().trim().max(40).optional().or(z.literal("")),
-    })
+    .discriminatedUnion("modo", [
+      z.object({
+        modo: z.literal("novo"),
+        nome: z.string().trim().min(2).max(120),
+        telefone: z.string().trim().min(8, "Telefone do responsável obrigatório").max(30),
+        parentesco: textoOpcional(40),
+        senha: z.string().min(6).max(64).optional().or(z.literal("")),
+      }),
+      z.object({
+        modo: z.literal("existente"),
+        responsavelId: cuid,
+        parentesco: textoOpcional(40),
+      }),
+    ])
     .optional(),
+});
+
+export const esqueciSenhaSchema = z.object({
+  codigo: z
+    .string()
+    .trim()
+    .min(3, "Informe o código de matrícula")
+    .max(30)
+    .transform((v) => v.toUpperCase()),
+});
+
+export const criarMatriculaSchema = z.object({
+  alunoId: cuid,
+  turmaId: cuid,
+  planoId: cuid,
+});
+
+export const promocaoSchema = z.object({
+  titulo: z.string().trim().min(2).max(120),
+  descricao: textoOpcional(500),
+  cursoId: cuid.optional().or(z.literal("")),
+  percentualDesconto: z.coerce.number().int().min(0).max(100).optional(),
+  dataInicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de início obrigatória"),
+  dataFim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de fim obrigatória"),
+});
+
+export const alternarPromocaoSchema = z.object({
+  promocaoId: cuid,
+  ativo: z.boolean(),
+});
+
+export const aulaTemaSchema = z.object({
+  aulaId: cuid,
+  conteudo: textoOpcional(300),
+  materialUrl: z.string().trim().url("URL inválida").max(500).optional().or(z.literal("")),
+});
+
+const competenciasSchema = z
+  .array(z.number().int().min(0).max(200))
+  .length(5, "Informe as 5 competências (0 a 200)")
+  .optional()
+  .nullable();
+
+export const registrarEntregaSchema = z.object({
+  aulaId: cuid,
+  alunoId: cuid,
+  quantidadeEntregue: z.number().int().min(0).max(3),
+});
+
+export const lancarNotasSchema = z.object({
+  entregaId: cuid,
+  correcoes: z
+    .array(
+      z.object({
+        numero: z.number().int().min(1).max(3),
+        nota: z.number().min(0).max(1000).optional().nullable(), // professora
+        notaSofia: z.number().min(0).max(1000).optional().nullable(),
+        competencias: competenciasSchema,
+      })
+    )
+    .min(1)
+    .max(3),
+});
+
+export const aprovarEntregaSchema = z.object({
+  entregaId: cuid,
+  feedback: textoOpcional(1000),
+});
+
+export const marcarAvisoLidoSchema = z.object({
+  avisoId: cuid,
+});
+
+export const alterarStatusUsuarioSchema = z.object({
+  tipo: z.enum(["aluno", "professor"]),
+  id: cuid,
+  ativo: z.boolean(),
+});
+
+export const rematriculaCompletaSchema = z.object({
+  // Confirmação de dados do aluno
+  nome: z.string().trim().min(2).max(120),
+  telefone: z.string().trim().min(8, "Telefone obrigatório").max(30),
+  whatsapp: textoOpcional(30),
+  instagram: textoOpcional(60),
+  responsavelNome: textoOpcional(120),
+  responsavelTelefone: textoOpcional(30),
+  // Escolhas
+  turmaId: cuid,
+  turma2Id: cuid.optional().or(z.literal("")),
+  planoId: cuid,
+  formaPagamento: z.enum(["PIX", "DINHEIRO", "CARTAO", "OUTRO"]),
+  alunoId: cuid.optional(), // responsável envia pelo filho
 });
 
 export const alunoPatchSchema = z.object({

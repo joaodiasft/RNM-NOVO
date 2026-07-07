@@ -6,26 +6,36 @@ import { CursoBadge } from "@/components/ui/CursoBadge";
 import { CORES_CURSO } from "@/lib/utils/index";
 import { FormNovaTurma } from "@/components/forms/FormNovaTurma";
 import { FormNovoProfessor } from "@/components/forms/FormNovoProfessor";
-import { BotaoGerarModulo } from "@/components/forms/BotaoGerarModulo";
+import { FormGerarModulo } from "@/components/forms/FormGerarModulo";
+import { FormTemaAula } from "@/components/forms/FormTemaAula";
+import { FormPromocao } from "@/components/forms/FormPromocao";
 
 export default async function AcademicoPage() {
   const session = await auth();
   if (!session || session.user.papel !== "ADMIN") redirect("/login");
 
-  const turmas = await prisma.turma.findMany({
-    include: {
-      curso: true,
-      professores: { include: { professor: true } },
-      modulos: { orderBy: { numero: "desc" }, take: 1, include: { aulas: true } },
-      _count: { select: { matriculas: { where: { status: "ATIVA" } } } },
-    },
-    orderBy: { nome: "asc" },
-  });
+  const [turmas, cursos, promocoes] = await Promise.all([
+    prisma.turma.findMany({
+      include: {
+        curso: true,
+        professores: { include: { professor: true } },
+        modulos: {
+          orderBy: { numero: "desc" },
+          take: 1,
+          include: { aulas: { orderBy: { numero: "asc" } } },
+        },
+        _count: { select: { matriculas: { where: { status: "ATIVA" } } } },
+      },
+      orderBy: { nome: "asc" },
+    }),
+    prisma.curso.findMany({ orderBy: { nome: "asc" } }),
+    prisma.promocao.findMany({ orderBy: { criadoEm: "desc" }, take: 10 }),
+  ]);
 
   return (
     <DashboardShell titulo="Gestão Acadêmica" userName={session.user.nome} papel="ADMIN">
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+      <div className="grid gap-4 xl:grid-cols-3">
+        <div className="space-y-4 xl:col-span-2">
           {turmas.length === 0 ? (
             <Card>
               <EmptyState
@@ -35,58 +45,80 @@ export default async function AcademicoPage() {
               />
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {turmas.map((t) => {
-                const info = CORES_CURSO[t.curso.nome];
-                const cor = info?.primaria || "#4f46e5";
-                const modulo = t.modulos[0];
-                return (
-                  <Card key={t.id}>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="h-3 w-3 rounded-full"
-                          style={{ backgroundColor: cor }}
-                        />
-                        <h3 className="font-display font-semibold text-gray-900">
-                          Turma {t.nome}
-                        </h3>
-                      </div>
-                      <CursoBadge curso={t.curso.nome} />
-                    </div>
+            turmas.map((t) => {
+              const info = CORES_CURSO[t.curso.nome];
+              const modulo = t.modulos[0];
+              return (
+                <Card
+                  key={t.id}
+                  title={`Turma ${t.nome}`}
+                  descricao={`${t.diaSemana} · ${t.horaInicio}–${t.horaFim} · ${t._count.matriculas}/${t.capacidade} vagas · Prof.: ${
+                    t.professores.map((p) => p.professor.nome).join(", ") || "—"
+                  }`}
+                  acao={<CursoBadge curso={t.curso.nome} />}
+                >
+                  {!modulo ? (
                     <p className="text-sm text-gray-500">
-                      {t.diaSemana} · {t.horaInicio}–{t.horaFim}
+                      Nenhum módulo gerado ainda para esta turma.
                     </p>
-                    <div className="mt-3 space-y-1 text-sm text-gray-700">
-                      <p>
-                        <span className="text-gray-400">Ocupação:</span>{" "}
-                        {t._count.matriculas}/{t.capacidade} vagas
+                  ) : (
+                    <div>
+                      <p className="mb-2 text-sm font-semibold text-gray-800">
+                        Módulo {modulo.numero} —{" "}
+                        {new Date(modulo.mesReferencia).toLocaleDateString("pt-BR", {
+                          month: "long",
+                          year: "numeric",
+                        })}
                       </p>
-                      <p>
-                        <span className="text-gray-400">Professores:</span>{" "}
-                        {t.professores.map((p) => p.professor.nome).join(", ") || "—"}
-                      </p>
-                      <p>
-                        <span className="text-gray-400">Módulo atual:</span>{" "}
-                        {modulo
-                          ? `nº ${modulo.numero} (${modulo.aulas.length} aulas)`
-                          : "nenhum módulo gerado"}
-                      </p>
+                      <div className="space-y-2.5">
+                        {modulo.aulas.map((aula) => (
+                          <div
+                            key={aula.id}
+                            className="rounded-xl border-l-4 border border-gray-100 p-3"
+                            style={{ borderLeftColor: info?.primaria }}
+                          >
+                            <p className="mb-2 text-xs font-semibold text-gray-600">
+                              Aula {aula.numero} ·{" "}
+                              {new Date(aula.data).toLocaleDateString("pt-BR")}
+                            </p>
+                            <FormTemaAula
+                              aulaId={aula.id}
+                              temaInicial={aula.conteudo}
+                              materialInicial={aula.materialUrl}
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <BotaoGerarModulo turmaId={t.id} />
-                  </Card>
-                );
-              })}
-            </div>
+                  )}
+                  <FormGerarModulo turmaId={t.id} />
+                </Card>
+              );
+            })
           )}
         </div>
 
         <div className="space-y-4">
-          <Card title="Nova turma" descricao="Crie uma turma para um dos cursos">
+          <Card title="Nova turma">
             <FormNovaTurma />
           </Card>
           <Card title="Novo professor" descricao="Login: e-mail + senha">
             <FormNovoProfessor turmas={turmas} />
+          </Card>
+          <Card
+            title="Promoções de cursos"
+            descricao="Aparecem para os alunos em Cursos, dentro do período"
+          >
+            <FormPromocao
+              cursos={cursos}
+              promocoes={promocoes.map((p) => ({
+                id: p.id,
+                titulo: p.titulo,
+                ativo: p.ativo,
+                dataInicio: p.dataInicio.toISOString(),
+                dataFim: p.dataFim.toISOString(),
+              }))}
+            />
           </Card>
         </div>
       </div>

@@ -8,6 +8,15 @@ export async function criarAluno(data: {
   nome: string;
   senha?: string;
   dataNascimento?: string;
+  telefone?: string;
+  email?: string;
+  whatsapp?: string;
+  instagram?: string;
+  escola?: string;
+  serie?: string;
+  cpf?: string;
+  rg?: string;
+  endereco?: string;
   usuarioId: string;
   papel: PapelUsuario;
 }) {
@@ -23,6 +32,15 @@ export async function criarAluno(data: {
       dataNascimento: data.dataNascimento
         ? new Date(data.dataNascimento)
         : undefined,
+      telefone: data.telefone || null,
+      email: data.email?.toLowerCase() || null,
+      whatsapp: data.whatsapp || null,
+      instagram: data.instagram || null,
+      escola: data.escola || null,
+      serie: data.serie || null,
+      cpf: data.cpf || null,
+      rg: data.rg || null,
+      endereco: data.endereco || null,
     },
   });
 
@@ -40,15 +58,56 @@ export async function criarAluno(data: {
   return aluno;
 }
 
-export async function criarResponsavel(data: {
-  nome: string;
-  telefone?: string;
+/** Vincula um responsável já cadastrado a outro aluno (irmãos). */
+export async function vincularResponsavelExistente(data: {
+  responsavelId: string;
   alunoId: string;
   parentesco?: string;
   usuarioId: string;
   papel: PapelUsuario;
 }) {
-  const senhaBase = gerarSenhaResponsavel(data.nome, data.telefone);
+  const responsavel = await prisma.responsavel.findUnique({
+    where: { id: data.responsavelId },
+  });
+  if (!responsavel) throw new Error("Responsável não encontrado");
+
+  const jaVinculado = await prisma.alunoResponsavel.findFirst({
+    where: { responsavelId: data.responsavelId, alunoId: data.alunoId },
+  });
+  if (jaVinculado) throw new Error("Responsável já vinculado a este aluno");
+
+  await prisma.alunoResponsavel.create({
+    data: {
+      alunoId: data.alunoId,
+      responsavelId: data.responsavelId,
+      parentesco: data.parentesco || null,
+    },
+  });
+
+  registrarLog({
+    nivel: "INFO",
+    categoria: "USUARIO",
+    acao: "RESPONSAVEL_VINCULADO",
+    usuarioId: data.usuarioId,
+    papel: data.papel,
+    entidade: "Responsavel",
+    entidadeId: data.responsavelId,
+    detalhes: { alunoId: data.alunoId },
+  });
+
+  return responsavel;
+}
+
+export async function criarResponsavel(data: {
+  nome: string;
+  telefone?: string;
+  alunoId: string;
+  parentesco?: string;
+  senha?: string; // senha definida pelo admin (opcional)
+  usuarioId: string;
+  papel: PapelUsuario;
+}) {
+  const senhaBase = data.senha || gerarSenhaResponsavel(data.nome, data.telefone);
   let senhaFinal = senhaBase;
 
   const vinculos = await prisma.alunoResponsavel.findMany({

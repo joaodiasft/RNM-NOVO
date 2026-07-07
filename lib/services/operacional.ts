@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { criptografar } from "@/lib/crypto";
 import { registrarLog } from "@/lib/logging/sheets";
+import { calcularRepasse } from "@/lib/repasse";
 import type { PapelUsuario, StatusPagamento } from "@prisma/client";
 
 export async function confirmarPagamento(data: {
@@ -10,6 +11,19 @@ export async function confirmarPagamento(data: {
   papel: PapelUsuario;
   observacao?: string;
 }) {
+  const existente = await prisma.pagamento.findUniqueOrThrow({
+    where: { id: data.pagamentoId },
+    include: {
+      matriculaCurso: { include: { turma: { include: { curso: true } } } },
+    },
+  });
+
+  const valor = Number(existente.valor);
+  const repasse = calcularRepasse(
+    valor,
+    existente.matriculaCurso.turma.curso.nome
+  );
+
   const pagamento = await prisma.pagamento.update({
     where: { id: data.pagamentoId },
     data: {
@@ -18,6 +32,10 @@ export async function confirmarPagamento(data: {
       dataPagamento: new Date(),
       confirmadoPorId: data.usuarioId,
       observacao: data.observacao,
+      valorEscola: repasse.valorEscola,
+      valorProfessor: repasse.valorProfessor,
+      percentualEscola: repasse.percentualEscola,
+      percentualProfessor: repasse.percentualProfessor,
     },
   });
 
@@ -109,6 +127,7 @@ export async function solicitarRematricula(data: {
   planoId: string;
   usuarioId: string;
   papel: PapelUsuario;
+  dados?: Record<string, unknown>; // confirmação de dados do formulário
 }) {
   const turma = await prisma.turma.findUnique({ where: { id: data.turmaId } });
   if (!turma || !turma.ativa) throw new Error("Turma indisponível");
@@ -128,6 +147,7 @@ export async function solicitarRematricula(data: {
       alunoId: data.alunoId,
       turmaId: data.turmaId,
       planoId: data.planoId,
+      dados: data.dados ? JSON.parse(JSON.stringify(data.dados)) : undefined,
     },
   });
 

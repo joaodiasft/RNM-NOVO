@@ -9,65 +9,116 @@ import {
   EmptyState,
   Badge,
 } from "@/components/DashboardShell";
+import { CursoBadge } from "@/components/ui/CursoBadge";
+import { CORES_CURSO, calcularPercentualFrequencia } from "@/lib/utils/index";
 import Link from "next/link";
 
 export default async function AdminDashboard() {
   const session = await auth();
   if (!session || session.user.papel !== "ADMIN") redirect("/login");
 
+  const competenciaAtual = new Date().toISOString().slice(0, 7);
+
   const [
     alunosAtivos,
     pagamentosAtrasados,
     matriculasAtivas,
-    turmasAtivas,
+    turmas,
     redacoesPendentes,
     rematriculasPendentes,
     avisosRecentes,
+    pagamentosMes,
+    frequencias,
+    professoresAtivos,
   ] = await Promise.all([
     prisma.aluno.count({ where: { ativo: true } }),
-    prisma.pagamento.count({ where: { status: "ATRASADO" } }),
+    prisma.pagamento.findMany({ where: { status: "ATRASADO" } }),
     prisma.matriculaCurso.count({ where: { status: "ATIVA" } }),
-    prisma.turma.count({ where: { ativa: true } }),
-    prisma.entregaRedacao.count({ where: { status: "AGUARDANDO_APROVACAO" } }),
+    prisma.turma.findMany({
+      where: { ativa: true },
+      include: {
+        curso: true,
+        _count: { select: { matriculas: { where: { status: "ATIVA" } } } },
+      },
+      orderBy: { nome: "asc" },
+    }),
+    prisma.entregaRedacao.count({
+      where: { status: { in: ["AGUARDANDO_APROVACAO", "AGUARDANDO_NOTAS"] } },
+    }),
     prisma.solicitacaoRematricula.count({ where: { status: "PENDENTE" } }),
-    prisma.aviso.findMany({ take: 5, orderBy: { criadoEm: "desc" } }),
+    prisma.aviso.findMany({
+      take: 5,
+      orderBy: { criadoEm: "desc" },
+      include: { _count: { select: { leituras: true } } },
+    }),
+    prisma.pagamento.findMany({ where: { competencia: competenciaAtual } }),
+    prisma.frequencia.findMany({ select: { status: true } }),
+    prisma.professor.count({ where: { ativo: true } }),
   ]);
 
+  const somaAtrasados = pagamentosAtrasados.reduce((s, p) => s + Number(p.valor), 0);
+  const recebidoMes = pagamentosMes
+    .filter((p) => p.status === "CONFIRMADO")
+    .reduce((s, p) => s + Number(p.valor), 0);
+  const previstoMes = pagamentosMes.reduce((s, p) => s + Number(p.valor), 0);
+  const freqMedia = calcularPercentualFrequencia(frequencias);
+  const vagasTotais = turmas.reduce((s, t) => s + t.capacidade, 0);
+  const vagasUsadas = turmas.reduce((s, t) => s + t._count.matriculas, 0);
+
+  const brl = (v: number) =>
+    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
   return (
-    <DashboardShell
-      titulo="Painel Administrativo"
-      userName={session.user.nome}
-      papel="ADMIN"
-    >
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+    <DashboardShell titulo="Painel Administrativo" userName={session.user.nome} papel="ADMIN">
+      {/* KPIs principais */}
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Alunos ativos" value={alunosAtivos} icone="users" cor="#4f46e5" />
-        <StatCard label="Matrículas" value={matriculasAtivas} icone="clipboard" cor="#0d9488" />
-        <StatCard label="Turmas ativas" value={turmasAtivas} icone="book" cor="#1971c2" />
+        <StatCard label="Matrículas ativas" value={matriculasAtivas} icone="clipboard" cor="#0d9488" />
         <StatCard
-          label="Pag. atrasados"
-          value={pagamentosAtrasados}
+          label="Recebido no mês"
+          value={brl(recebidoMes)}
+          hint={`previsto ${brl(previstoMes)}`}
           icone="currency"
-          cor={pagamentosAtrasados > 0 ? "#dc2626" : "#16a34a"}
+          cor="#16a34a"
         />
         <StatCard
-          label="Redações pendentes"
-          value={redacoesPendentes}
-          icone="pencil"
-          cor="#d6336c"
+          label="Inadimplência"
+          value={brl(somaAtrasados)}
+          hint={`${pagamentosAtrasados.length} pagamento(s)`}
+          icone="alert"
+          cor={somaAtrasados > 0 ? "#dc2626" : "#16a34a"}
         />
+      </div>
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Frequência média"
+          value={`${freqMedia}%`}
+          icone="check-circle"
+          cor={freqMedia < 75 ? "#dc2626" : "#16a34a"}
+        />
+        <StatCard
+          label="Ocupação de vagas"
+          value={`${vagasUsadas}/${vagasTotais}`}
+          hint={vagasTotais > 0 ? `${Math.round((vagasUsadas / vagasTotais) * 100)}% ocupado` : undefined}
+          icone="book"
+          cor="#1971c2"
+        />
+        <StatCard label="Redações p/ tratar" value={redacoesPendentes} icone="pencil" cor="#d6336c" />
         <StatCard
           label="Rematrículas"
           value={rematriculasPendentes}
+          hint="aguardando análise"
           icone="refresh"
           cor="#b45309"
-          hint="aguardando análise"
         />
       </div>
 
+      {/* Alertas acionáveis */}
       <div className="space-y-3">
-        {pagamentosAtrasados > 0 && (
-          <AlertBanner tipo="warn">
-            {pagamentosAtrasados} pagamento(s) atrasado(s).{" "}
+        {pagamentosAtrasados.length > 0 && (
+          <AlertBanner tipo="error">
+            {pagamentosAtrasados.length} pagamento(s) atrasado(s) somando{" "}
+            {brl(somaAtrasados)}.{" "}
             <Link href="/admin/financeiro" className="font-semibold underline">
               Ver inadimplência
             </Link>
@@ -75,14 +126,14 @@ export default async function AdminDashboard() {
         )}
         {redacoesPendentes > 0 && (
           <AlertBanner tipo="info">
-            {redacoesPendentes} entrega(s) de redação aguardando aprovação.{" "}
+            {redacoesPendentes} entrega(s) de redação para registrar/aprovar.{" "}
             <Link href="/admin/redacao" className="font-semibold underline">
-              Aprovar agora
+              Tratar agora
             </Link>
           </AlertBanner>
         )}
         {rematriculasPendentes > 0 && (
-          <AlertBanner tipo="info">
+          <AlertBanner tipo="warn">
             {rematriculasPendentes} solicitação(ões) de rematrícula pendente(s).{" "}
             <Link href="/admin/matriculas" className="font-semibold underline">
               Analisar
@@ -92,51 +143,88 @@ export default async function AdminDashboard() {
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Card title="Avisos recentes" descricao="Últimas publicações para a comunidade">
-          {avisosRecentes.length === 0 ? (
-            <EmptyState
-              icone="bell"
-              titulo="Nenhum aviso publicado"
-              descricao="Publique avisos em Avisos para alunos e responsáveis."
-            />
+        {/* Ocupação por turma com a cor do curso */}
+        <Card title="Ocupação por turma" descricao={`${turmas.length} turmas ativas · ${professoresAtivos} professores`}>
+          {turmas.length === 0 ? (
+            <EmptyState icone="book" titulo="Nenhuma turma ativa" />
           ) : (
-            <ul className="divide-y divide-gray-100">
-              {avisosRecentes.map((a) => (
-                <li key={a.id} className="py-3 first:pt-0 last:pb-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-gray-900">{a.titulo}</p>
-                    <Badge tom="blue">{a.publicoAlvo}</Badge>
-                  </div>
-                  <p className="mt-0.5 line-clamp-2 text-sm text-gray-500">{a.mensagem}</p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    {new Date(a.criadoEm).toLocaleDateString("pt-BR")}
-                  </p>
-                </li>
-              ))}
+            <ul className="space-y-3">
+              {turmas.map((t) => {
+                const info = CORES_CURSO[t.curso.nome];
+                const pct = Math.min(
+                  100,
+                  Math.round((t._count.matriculas / t.capacidade) * 100)
+                );
+                return (
+                  <li key={t.id}>
+                    <div className="mb-1 flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 font-medium text-gray-800">
+                        Turma {t.nome}
+                        <CursoBadge curso={t.curso.nome} tamanho="sm" />
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {t._count.matriculas}/{t.capacidade}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${pct}%`, backgroundColor: info?.primaria }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>
 
-        <Card title="Atalhos rápidos" descricao="Ações mais comuns do dia a dia">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { href: "/admin/usuarios", label: "Cadastrar aluno" },
-              { href: "/admin/frequencia", label: "Lançar frequência" },
-              { href: "/admin/financeiro", label: "Confirmar pagamento" },
-              { href: "/admin/avisos", label: "Publicar aviso" },
-              { href: "/admin/academico", label: "Gerar módulo do mês" },
-              { href: "/admin/relatorios", label: "Exportar relatório" },
-            ].map((atalho) => (
-              <Link
-                key={atalho.href + atalho.label}
-                href={atalho.href}
-                className="rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3.5 text-sm font-medium text-gray-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-              >
-                {atalho.label}
-              </Link>
-            ))}
-          </div>
-        </Card>
+        <div className="space-y-4">
+          <Card title="Avisos recentes" descricao="Com contagem de leituras">
+            {avisosRecentes.length === 0 ? (
+              <EmptyState icone="bell" titulo="Nenhum aviso publicado" />
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {avisosRecentes.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-2 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-900">
+                        {a.titulo}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(a.criadoEm).toLocaleDateString("pt-BR")} · {a.publicoAlvo}
+                      </p>
+                    </div>
+                    <Badge tom={a._count.leituras > 0 ? "green" : "gray"}>
+                      {a._count.leituras} leitura(s)
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card title="Atalhos rápidos">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { href: "/admin/usuarios", label: "Cadastrar aluno" },
+                { href: "/admin/matriculas", label: "Nova matrícula" },
+                { href: "/admin/frequencia", label: "Lançar frequência" },
+                { href: "/admin/redacao", label: "Redações" },
+                { href: "/admin/financeiro", label: "Confirmar pagamento" },
+                { href: "/admin/avisos", label: "Publicar aviso" },
+              ].map((atalho) => (
+                <Link
+                  key={atalho.href + atalho.label}
+                  href={atalho.href}
+                  className="rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  {atalho.label}
+                </Link>
+              ))}
+            </div>
+          </Card>
+        </div>
       </div>
     </DashboardShell>
   );

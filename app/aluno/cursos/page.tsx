@@ -22,6 +22,17 @@ export default async function AlunoCursosPage() {
     ? CORES_CURSO[aluno.matriculas[0].turma.curso.nome]?.primaria
     : undefined;
 
+  const hoje = new Date();
+  const promocoes = await prisma.promocao.findMany({
+    where: {
+      ativo: true,
+      dataInicio: { lte: hoje },
+      dataFim: { gte: hoje },
+    },
+    include: { curso: true },
+    orderBy: { dataFim: "asc" },
+  });
+
   return (
     <DashboardShell
       titulo="Meus Cursos"
@@ -29,6 +40,30 @@ export default async function AlunoCursosPage() {
       userName={aluno.nome}
       papel="ALUNO"
     >
+      {promocoes.length > 0 && (
+        <Card title="Promoções ativas" className="mb-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {promocoes.map((p) => (
+              <div
+                key={p.id}
+                className="rounded-xl border border-fuchsia-200 bg-gradient-to-br from-fuchsia-50 to-pink-50 p-4"
+              >
+                <p className="font-semibold text-fuchsia-900">{p.titulo}</p>
+                {p.descricao && (
+                  <p className="mt-1 text-sm text-fuchsia-800/80">{p.descricao}</p>
+                )}
+                <p className="mt-2 text-xs font-medium text-fuchsia-700">
+                  {p.percentualDesconto}% off
+                  {p.curso ? ` · ${p.curso.nome}` : " · todos os cursos"}
+                </p>
+                <p className="text-[11px] text-fuchsia-600/70">
+                  Até {new Date(p.dataFim).toLocaleDateString("pt-BR")}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       {aluno.matriculas.length === 0 ? (
         <Card>
           <EmptyState

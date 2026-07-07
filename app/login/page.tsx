@@ -58,6 +58,8 @@ export default function LoginPage() {
   const [pendingToken, setPendingToken] = useState("");
   const [codigo, setCodigo] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
+  const [esqueciSenha, setEsqueciSenha] = useState(false);
+  const [msgEsqueci, setMsgEsqueci] = useState("");
 
   const perfilAtual = perfis.find((p) => p.id === perfil)!;
   const usaEmail = perfil === "PROFESSOR" || perfil === "ADMIN";
@@ -76,6 +78,28 @@ export default function LoginPage() {
     }
     setLoadingMsg("Redirecionando...");
     window.location.href = data.redirect || "/";
+  }
+
+  async function handleEsqueciSenha(e: React.FormEvent) {
+    e.preventDefault();
+    setErro("");
+    setMsgEsqueci("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/esqueci-senha", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo: identificador }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.erro || "Falha ao enviar");
+      setMsgEsqueci(data.mensagem || "Se houver e-mail cadastrado, enviamos a nova senha.");
+      setEsqueciSenha(false);
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : "Erro");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -375,15 +399,55 @@ export default function LoginPage() {
                   </p>
                 )}
 
+                {perfil === "ALUNO" && adminStep === "senha" && !esqueciSenha && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEsqueciSenha(true);
+                      setErro("");
+                    }}
+                    className="text-xs font-semibold text-indigo-600 hover:underline"
+                  >
+                    Esqueci minha senha
+                  </button>
+                )}
+
+                {esqueciSenha && perfil === "ALUNO" && (
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+                    <p className="mb-2 text-xs text-gray-600">
+                      Informe sua matrícula. Enviaremos uma senha nova para o e-mail
+                      cadastrado (mistura com seu código).
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setEsqueciSenha(false)}
+                      className="mb-2 text-xs text-gray-500 hover:underline"
+                    >
+                      ← Voltar ao login
+                    </button>
+                  </div>
+                )}
+
+                {msgEsqueci && (
+                  <p className="msg-ok text-sm">{msgEsqueci}</p>
+                )}
+
                 <button
-                  type="submit"
+                  type={esqueciSenha && perfil === "ALUNO" ? "button" : "submit"}
+                  onClick={
+                    esqueciSenha && perfil === "ALUNO"
+                      ? (ev) => handleEsqueciSenha(ev as unknown as React.FormEvent)
+                      : undefined
+                  }
                   disabled={loading}
                   className="btn w-full bg-gradient-to-r from-rnm-redacao to-fuchsia-600 py-3 text-white shadow-lg shadow-rnm-redacao/25 hover:brightness-110"
                 >
                   {loading && (
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                   )}
-                  {botaoLabel}
+                  {esqueciSenha && perfil === "ALUNO"
+                    ? "Enviar nova senha por e-mail"
+                    : botaoLabel}
                 </button>
               </form>
             </div>
