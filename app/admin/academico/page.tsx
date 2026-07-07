@@ -32,6 +32,27 @@ export default async function AcademicoPage() {
     prisma.promocao.findMany({ orderBy: { criadoEm: "desc" }, take: 10 }),
   ]);
 
+  // Feedback dos alunos por curso (média + últimos comentários)
+  const feedbacks = await prisma.feedbackCurso.findMany({
+    include: {
+      curso: true,
+      aluno: { select: { nome: true, codigo: true } },
+    },
+    orderBy: { atualizadoEm: "desc" },
+  });
+  const mediaPorCurso = new Map<string, { soma: number; qtd: number; nome: string }>();
+  for (const f of feedbacks) {
+    const m = mediaPorCurso.get(f.cursoId) ?? { soma: 0, qtd: 0, nome: f.curso.nome };
+    m.soma += f.nota;
+    m.qtd += 1;
+    mediaPorCurso.set(f.cursoId, m);
+  }
+  const LABEL_CURSO: Record<string, string> = {
+    REDACAO: "Redação",
+    EXATAS: "Exatas",
+    MATEMATICA: "Matemática",
+  };
+
   return (
     <DashboardShell titulo="Gestão Acadêmica" userName={session.user.nome} papel="ADMIN">
       <div className="grid gap-4 xl:grid-cols-3">
@@ -119,6 +140,56 @@ export default async function AcademicoPage() {
                 dataFim: p.dataFim.toISOString(),
               }))}
             />
+          </Card>
+
+          <Card
+            title="Feedback dos cursos ⭐"
+            descricao="Avaliações enviadas pelos alunos"
+          >
+            {feedbacks.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                Nenhuma avaliação ainda — os alunos avaliam em “Meus Cursos”.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  {[...mediaPorCurso.values()].map((m) => {
+                    const media = m.soma / m.qtd;
+                    return (
+                      <div
+                        key={m.nome}
+                        className="flex items-center justify-between rounded-xl border border-gray-100 px-3 py-2 text-sm"
+                      >
+                        <span className="font-medium text-gray-800">
+                          {LABEL_CURSO[m.nome] ?? m.nome}
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          {"⭐".repeat(Math.round(media))}{" "}
+                          <strong>{media.toFixed(1)}</strong> ({m.qtd})
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                  {feedbacks
+                    .filter((f) => f.comentario)
+                    .slice(0, 10)
+                    .map((f) => (
+                      <div
+                        key={f.id}
+                        className="rounded-xl bg-gray-50/70 px-3 py-2 text-xs"
+                      >
+                        <p className="text-gray-700">“{f.comentario}”</p>
+                        <p className="mt-1 text-gray-400">
+                          {"⭐".repeat(f.nota)} · {f.aluno.nome} ·{" "}
+                          {LABEL_CURSO[f.curso.nome] ?? f.curso.nome}
+                        </p>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </Card>
         </div>
       </div>

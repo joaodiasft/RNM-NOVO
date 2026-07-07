@@ -10,6 +10,7 @@ import {
   EmptyState,
 } from "@/components/DashboardShell";
 import { CursoBadge } from "@/components/ui/CursoBadge";
+import { calcularBadges } from "@/lib/badges";
 import {
   calcularPercentualFrequencia,
   FREQUENCIA_ALERTA_PERCENTUAL,
@@ -92,6 +93,33 @@ export default async function AlunoDashboard() {
   const brl = (v: number) =>
     v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+  // 🏅 Conquistas: badges automáticos + premiações do admin
+  const [correcoesAprovadas, premiacoes] = await Promise.all([
+    prisma.correcaoRedacao.findMany({
+      where: { entrega: { alunoId: aluno.id, status: "APROVADA" } },
+      select: { nota: true },
+    }),
+    prisma.premiacao.findMany({
+      where: { alunoId: aluno.id },
+      orderBy: { criadoEm: "desc" },
+    }),
+  ]);
+  const notas = correcoesAprovadas
+    .map((c) => (c.nota != null ? Number(c.nota) : null))
+    .filter((n): n is number => n !== null);
+  const badges = calcularBadges({
+    pctFrequencia: pct,
+    totalRegistrosFrequencia: aluno.frequencias.length,
+    totalRedacoesAprovadas: aluno.entregasRedacao.reduce(
+      (s, e) => s + e.quantidadeEntregue,
+      0
+    ),
+    melhorNota: notas.length > 0 ? Math.max(...notas) : null,
+    financeiroEmDia: totalAtrasado === 0 && totalAberto === 0,
+    temPagamentos: pagamentos.length > 0,
+    cursosAtivos: aluno.matriculas.length,
+  });
+
   return (
     <DashboardShell
       titulo={aluno.nome}
@@ -126,6 +154,38 @@ export default async function AlunoDashboard() {
           secretaria.
         </AlertBanner>
         </div>
+      )}
+
+      {(badges.length > 0 || premiacoes.length > 0) && (
+        <Card title="Minhas conquistas 🏅" className="mb-4">
+          <div className="flex flex-wrap gap-2">
+            {premiacoes.map((p) => (
+              <span
+                key={p.id}
+                title={p.descricao ?? undefined}
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-3 py-1.5 text-xs font-semibold text-amber-800 shadow-sm"
+              >
+                <span className="text-base">{p.icone ?? "🏅"}</span>
+                {p.titulo}
+              </span>
+            ))}
+            {badges.map((b) => (
+              <span
+                key={b.id}
+                title={b.descricao}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm"
+                style={{
+                  backgroundColor: `${b.cor}14`,
+                  color: b.cor,
+                  border: `1px solid ${b.cor}33`,
+                }}
+              >
+                <span className="text-base">{b.emoji}</span>
+                {b.titulo}
+              </span>
+            ))}
+          </div>
+        </Card>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">

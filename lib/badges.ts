@@ -17,7 +17,8 @@ export interface DadosBadges {
   totalRegistrosFrequencia: number;
   totalRedacoesAprovadas: number;
   melhorNota: number | null; // maior nota (professora) 0-1000
-  semAtrasados: boolean;
+  /** true somente se não há NADA atrasado nem pendente */
+  financeiroEmDia: boolean;
   temPagamentos: boolean;
   cursosAtivos: number;
 }
@@ -87,11 +88,11 @@ export function calcularBadges(d: DadosBadges): BadgeAluno[] {
     });
   }
 
-  if (d.temPagamentos && d.semAtrasados) {
+  if (d.temPagamentos && d.financeiroEmDia) {
     badges.push({
       id: "em-dia",
       titulo: "Financeiro em Dia",
-      descricao: "Nenhum pagamento atrasado",
+      descricao: "Nenhum pagamento pendente ou atrasado",
       emoji: "💚",
       cor: "#16a34a",
     });

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { DashboardShell, Card, EmptyState } from "@/components/DashboardShell";
 import { CORES_CURSO } from "@/lib/utils/index";
+import { FormFeedbackCurso } from "@/components/forms/FormFeedbackCurso";
 
 export default async function AlunoCursosPage() {
   const session = await auth();
@@ -21,6 +22,12 @@ export default async function AlunoCursosPage() {
   const cor = aluno.matriculas[0]?.turma.curso
     ? CORES_CURSO[aluno.matriculas[0].turma.curso.nome]?.primaria
     : undefined;
+
+  // Avaliações já enviadas pelo aluno (uma por curso, atualizável)
+  const feedbacks = await prisma.feedbackCurso.findMany({
+    where: { alunoId: aluno.id },
+  });
+  const feedbackPorCurso = new Map(feedbacks.map((f) => [f.cursoId, f]));
 
   const hoje = new Date();
   const promocoes = await prisma.promocao.findMany({
@@ -103,6 +110,14 @@ export default async function AlunoCursosPage() {
                   <p>
                     <span className="text-gray-400">Plano:</span> {m.plano.nome}
                   </p>
+                  <FormFeedbackCurso
+                    cursoId={m.turma.curso.id}
+                    cursoLabel={info?.label ?? m.turma.curso.nome}
+                    notaInicial={feedbackPorCurso.get(m.turma.curso.id)?.nota}
+                    comentarioInicial={
+                      feedbackPorCurso.get(m.turma.curso.id)?.comentario
+                    }
+                  />
                 </div>
               </div>
             );
