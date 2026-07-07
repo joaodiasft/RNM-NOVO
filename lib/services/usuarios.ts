@@ -154,6 +154,7 @@ export async function criarMatricula(data: {
   alunoId: string;
   turmaId: string;
   planoId: string;
+  valor?: number;
   usuarioId: string;
   papel: PapelUsuario;
 }) {
@@ -198,11 +199,12 @@ export async function criarMatricula(data: {
   });
 
   const competencia = new Date().toISOString().slice(0, 7);
+  const valorFinal = data.valor ?? Number(cursoPlano.valor);
   await prisma.pagamento.create({
     data: {
       matriculaCursoId: matricula.id,
       competencia,
-      valor: cursoPlano.valor,
+      valor: valorFinal,
       status: "PENDENTE",
     },
   });

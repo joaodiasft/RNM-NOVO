@@ -196,20 +196,20 @@ export function DashboardShell({
       </div>
 
       {/* ===== Conteúdo ===== */}
-      <main className="animate-fade-up mx-auto max-w-6xl px-4 py-5 pb-28 sm:px-6 lg:px-8 lg:pb-12">
+      <main className="animate-fade-up mx-auto w-full max-w-6xl px-3 py-4 pb-28 sm:px-6 sm:py-5 lg:px-8 lg:pb-12">
         {children}
       </main>
 
       {/* ===== Navegação inferior (mobile) ===== */}
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur lg:hidden">
-        <div className="no-scrollbar flex overflow-x-auto px-1">
+      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] backdrop-blur lg:hidden">
+        <div className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto px-0.5">
           {nav.map((item) => {
             const isAtivo = ativo(item.href, item.exato);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex min-w-[72px] flex-1 flex-col items-center gap-0.5 px-2 pb-2 pt-2.5"
+                className="flex min-w-[68px] max-w-[88px] flex-1 snap-start flex-col items-center gap-0.5 px-1.5 pb-2 pt-2"
                 style={{ color: isAtivo ? accent : "#6b7280" }}
               >
                 <span
@@ -252,8 +252,8 @@ export function Card({
       className={`rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)] transition-shadow duration-200 hover:shadow-[0_4px_16px_rgba(16,24,40,0.08)] sm:p-6 ${className}`}
     >
       {(title || acao) && (
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             {title && (
               <h2 className="font-display text-base font-semibold text-gray-900 sm:text-lg">
                 {title}

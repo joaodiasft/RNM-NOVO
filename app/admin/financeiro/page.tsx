@@ -9,19 +9,28 @@ import {
   StatCard,
   EmptyState,
 } from "@/components/DashboardShell";
+import { CursoBadge } from "@/components/ui/CursoBadge";
 import { atualizarPagamentosAtrasados } from "@/lib/services/operacional";
 import { FormConfirmarPagamento } from "@/components/forms/FormConfirmarPagamento";
+import { FormGerarCobrancas } from "@/components/forms/FormGerarCobrancas";
+
+const LABEL_CURSO: Record<string, string> = {
+  REDACAO: "Redação",
+  EXATAS: "Exatas",
+  MATEMATICA: "Matemática",
+};
 
 export default async function FinanceiroPage() {
   const session = await auth();
   if (!session || session.user.papel !== "ADMIN") redirect("/login");
 
   await atualizarPagamentosAtrasados();
+  const competenciaAtual = new Date().toISOString().slice(0, 7);
 
   const pagamentos = await prisma.pagamento.findMany({
     include: {
       matriculaCurso: {
-        include: { aluno: true, turma: { include: { curso: true } } },
+        include: { aluno: true, turma: { include: { curso: true } }, plano: true },
       },
     },
     orderBy: [{ status: "asc" }, { competencia: "desc" }],
@@ -32,8 +41,8 @@ export default async function FinanceiroPage() {
   const confirmados = pagamentos.filter((p) => p.status === "CONFIRMADO");
   const somaConfirmados = confirmados.reduce((s, p) => s + Number(p.valor), 0);
   const somaAtrasados = atrasados.reduce((s, p) => s + Number(p.valor), 0);
+  const aConfirmar = pendentes.concat(atrasados);
 
-  // Resumo por competência (últimos 4 meses com lançamentos)
   const porMes = new Map<
     string,
     { previsto: number; recebido: number; atrasado: number }
@@ -62,7 +71,7 @@ export default async function FinanceiroPage() {
 
   return (
     <DashboardShell titulo="Financeiro" userName={session.user.nome} papel="ADMIN">
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="Recebido"
           value={`R$ ${somaConfirmados.toFixed(0)}`}
@@ -79,6 +88,15 @@ export default async function FinanceiroPage() {
         <StatCard label="Confirmados" value={confirmados.length} icone="check-circle" cor="#16a34a" />
       </div>
 
+      {pagamentos.length === 0 && (
+        <div className="mb-4">
+          <AlertBanner tipo="info">
+            Nenhum pagamento no sistema. Matricule alunos em{" "}
+            <strong>Matrículas</strong> ou clique em &quot;Gerar cobranças do mês&quot; abaixo.
+          </AlertBanner>
+        </div>
+      )}
+
       {atrasados.length > 0 && (
         <div className="mb-4">
           <AlertBanner tipo="error">
@@ -88,10 +106,18 @@ export default async function FinanceiroPage() {
         </div>
       )}
 
+      <Card
+        title="Gerar cobranças"
+        descricao="Cria pagamentos pendentes para matrículas ativas sem cobrança no mês"
+        className="mb-4"
+      >
+        <FormGerarCobrancas competenciaAtual={competenciaAtual} />
+      </Card>
+
       {meses.length > 0 && (
         <Card
           title="Resumo por mês"
-          descricao="Previsto × recebido × em atraso por competência"
+          descricao="Previsto × recebido × em atraso"
           className="mb-4"
         >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -101,11 +127,9 @@ export default async function FinanceiroPage() {
               return (
                 <div
                   key={competencia}
-                  className="rounded-xl border border-gray-100 p-4 text-sm"
+                  className="rounded-xl border border-gray-100 p-3 sm:p-4 text-sm"
                 >
-                  <p className="font-display font-semibold text-gray-900">
-                    {competencia}
-                  </p>
+                  <p className="font-display font-semibold text-gray-900">{competencia}</p>
                   <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
                     <div
                       className="h-full rounded-full bg-emerald-500"
@@ -130,19 +154,23 @@ export default async function FinanceiroPage() {
 
       <Card
         title="Repasse por curso (confirmados)"
-        descricao="Exatas: 30% escola / 70% professor · Matemática: 20% / 80% · Redação: 100% escola"
+        descricao="Exatas 30/70 · Matemática 20/80 · Redação 100% escola"
         className="mb-4"
       >
         {Object.keys(repassePorCurso).length === 0 ? (
-          <EmptyState icone="currency" titulo="Nenhum repasse calculado ainda" descricao="Confirme pagamentos para ver a divisão." />
+          <EmptyState
+            icone="currency"
+            titulo="Nenhum repasse ainda"
+            descricao="Confirme pagamentos para calcular a divisão."
+          />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(repassePorCurso).map(([curso, v]) => (
-              <div key={curso} className="rounded-xl border border-gray-100 p-4 text-sm">
-                <p className="font-semibold text-gray-900">{curso}</p>
-                <p className="mt-2 text-gray-600">
-                  Total: R$ {v.total.toFixed(2)}
+              <div key={curso} className="rounded-xl border border-gray-100 p-3 sm:p-4 text-sm">
+                <p className="font-semibold text-gray-900">
+                  {LABEL_CURSO[curso] ?? curso}
                 </p>
+                <p className="mt-2 text-gray-600">Total: R$ {v.total.toFixed(2)}</p>
                 <p className="text-emerald-700">Escola: R$ {v.escola.toFixed(2)}</p>
                 <p className="text-indigo-700">Professor: R$ {v.professor.toFixed(2)}</p>
               </div>
@@ -153,39 +181,48 @@ export default async function FinanceiroPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Confirmar pagamento">
-          <FormConfirmarPagamento pagamentos={pendentes.concat(atrasados)} />
+          <FormConfirmarPagamento pagamentos={aConfirmar} />
         </Card>
         <Card title="Histórico" descricao="Últimos 30 lançamentos">
           {pagamentos.length === 0 ? (
             <EmptyState icone="currency" titulo="Nenhum pagamento registrado" />
           ) : (
-            <ul className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-              {pagamentos.slice(0, 30).map((p) => (
-                <li
-                  key={p.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-gray-100 px-3.5 py-2.5 text-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-gray-900">
-                      {p.matriculaCurso.aluno.nome}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {p.competencia} · R$ {Number(p.valor).toFixed(2)}
-                    </p>
-                  </div>
-                  <Badge
-                    tom={
-                      p.status === "CONFIRMADO"
-                        ? "green"
-                        : p.status === "ATRASADO"
-                          ? "red"
-                          : "amber"
-                    }
+            <ul className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
+              {pagamentos.slice(0, 30).map((p) => {
+                const curso = p.matriculaCurso.turma.curso.nome;
+                return (
+                  <li
+                    key={p.id}
+                    className="rounded-xl border border-gray-100 px-3 py-2.5 text-sm"
                   >
-                    {p.status}
-                  </Badge>
-                </li>
-              ))}
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-gray-900">
+                          {p.matriculaCurso.aluno.nome}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {p.competencia} · Turma {p.matriculaCurso.turma.nome} · R${" "}
+                          {Number(p.valor).toFixed(2)}
+                        </p>
+                        <div className="mt-1">
+                          <CursoBadge curso={curso} tamanho="sm" />
+                        </div>
+                      </div>
+                      <Badge
+                        tom={
+                          p.status === "CONFIRMADO"
+                            ? "green"
+                            : p.status === "ATRASADO"
+                              ? "red"
+                              : "amber"
+                        }
+                      >
+                        {p.status}
+                      </Badge>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>

@@ -9,6 +9,7 @@ import {
 import {
   confirmarPagamento,
   atualizarPagamentosAtrasados,
+  gerarPagamentosCompetencia,
   cadastrarAcessoExterno,
   criarAviso,
   solicitarRematricula,
@@ -22,6 +23,7 @@ import {
   avisoSchema,
   responderRematriculaSchema,
   criarMatriculaSchema,
+  gerarCobrancasSchema,
   rematriculaCompletaSchema,
   validar,
 } from "@/lib/validacao";
@@ -207,12 +209,33 @@ export async function POST(request: Request) {
         if (papel !== "ADMIN") return respostaProibida();
         const body = validar(criarMatriculaSchema, bruto);
         if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
+        const quem = { usuarioId: session!.user.id, papel };
+        const m1 = await criarMatricula({
+          alunoId: body.data.alunoId,
+          turmaId: body.data.turmaId,
+          planoId: body.data.planoId,
+          valor: body.data.valor,
+          ...quem,
+        });
+        let m2 = null;
+        if (body.data.turma2Id) {
+          m2 = await criarMatricula({
+            alunoId: body.data.alunoId,
+            turmaId: body.data.turma2Id,
+            planoId: body.data.plano2Id || body.data.planoId,
+            valor: body.data.valor2,
+            ...quem,
+          });
+        }
+        return NextResponse.json({ matriculas: [m1, m2].filter(Boolean) });
+      }
+
+      case "gerar_cobrancas": {
+        if (papel !== "ADMIN") return respostaProibida();
+        const body = validar(gerarCobrancasSchema, bruto);
+        if (body.erro !== null) return NextResponse.json({ erro: body.erro }, { status: 400 });
         return NextResponse.json(
-          await criarMatricula({
-            ...body.data,
-            usuarioId: session!.user.id,
-            papel,
-          })
+          await gerarPagamentosCompetencia(body.data.competencia)
         );
       }
 

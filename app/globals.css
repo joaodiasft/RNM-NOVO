@@ -170,5 +170,27 @@ body {
 
 /* Área segura (iPhone com notch) para a barra inferior */
 .pb-safe {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* Inputs/selects legíveis no mobile (evita zoom iOS) */
+@media (max-width: 640px) {
+  .input,
+  select.input {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-success,
+  .btn-danger {
+    min-height: 44px;
+  }
+}
+
+/* Listas e cards responsivos */
+.rnm-stack-mobile {
+  @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between;
 }

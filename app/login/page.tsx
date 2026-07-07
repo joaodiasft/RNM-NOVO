@@ -237,7 +237,7 @@ export default function LoginPage() {
         </div>
 
         {/* cartão de login */}
-        <div className="relative z-10 flex w-full items-center justify-center px-4 py-10 sm:px-6 lg:w-1/2">
+        <div className="relative z-10 flex w-full items-center justify-center px-4 py-8 pb-safe sm:px-6 lg:w-1/2 lg:py-10">
           <div className="w-full max-w-md">
             {/* marca (mobile) */}
             <div className="mb-8 text-center lg:hidden">

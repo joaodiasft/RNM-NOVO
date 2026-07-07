@@ -80,6 +80,17 @@ export const criarMatriculaSchema = z.object({
   alunoId: cuid,
   turmaId: cuid,
   planoId: cuid,
+  valor: z.coerce.number().positive("Valor deve ser maior que zero").optional(),
+  turma2Id: cuid.optional().or(z.literal("")),
+  plano2Id: cuid.optional().or(z.literal("")),
+  valor2: z.coerce.number().positive("Valor do curso 2 inválido").optional(),
+});
+
+export const gerarCobrancasSchema = z.object({
+  competencia: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "Competência inválida (AAAA-MM)")
+    .optional(),
 });
 
 export const promocaoSchema = z.object({

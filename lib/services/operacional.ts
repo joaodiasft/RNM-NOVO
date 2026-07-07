@@ -52,6 +52,38 @@ export async function confirmarPagamento(data: {
   return pagamento;
 }
 
+/** Gera cobrança pendente do mês para matrículas ativas que ainda não têm. */
+export async function gerarPagamentosCompetencia(competencia?: string) {
+  const comp = competencia || new Date().toISOString().slice(0, 7);
+  const matriculas = await prisma.matriculaCurso.findMany({
+    where: { status: "ATIVA" },
+    include: {
+      pagamentos: { where: { competencia: comp } },
+      turma: { include: { curso: true } },
+      plano: true,
+    },
+  });
+
+  let criados = 0;
+  for (const m of matriculas) {
+    if (m.pagamentos.length > 0) continue;
+    const cursoPlano = await prisma.cursoPlano.findFirst({
+      where: { cursoId: m.turma.cursoId, planoId: m.planoId },
+    });
+    if (!cursoPlano) continue;
+    await prisma.pagamento.create({
+      data: {
+        matriculaCursoId: m.id,
+        competencia: comp,
+        valor: cursoPlano.valor,
+        status: "PENDENTE",
+      },
+    });
+    criados++;
+  }
+  return { criados, competencia: comp, totalMatriculas: matriculas.length };
+}
+
 export async function atualizarPagamentosAtrasados() {
   const hoje = new Date();
   const competenciaAtual = hoje.toISOString().slice(0, 7);
