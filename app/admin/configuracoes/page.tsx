@@ -3,15 +3,28 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { DashboardShell, Card, EmptyState } from "@/components/DashboardShell";
 import { FormUploadFoto } from "@/components/forms/FormUploadFoto";
+import { FormControleAcessos } from "@/components/forms/FormControleAcessos";
 
 export default async function ConfiguracoesPage() {
   const session = await auth();
   if (!session || session.user.papel !== "ADMIN") redirect("/login");
 
-  const logs = await prisma.logAuditoria.findMany({
-    orderBy: { timestamp: "desc" },
-    take: 50,
-  });
+  const [logs, alunos, professores] = await Promise.all([
+    prisma.logAuditoria.findMany({
+      orderBy: { timestamp: "desc" },
+      take: 50,
+    }),
+    prisma.aluno.findMany({
+      orderBy: { nome: "asc" },
+      include: {
+        matriculas: {
+          where: { status: "ATIVA" },
+          include: { turma: { include: { curso: true } } },
+        },
+      },
+    }),
+    prisma.professor.findMany({ orderBy: { nome: "asc" } }),
+  ]);
 
   return (
     <DashboardShell titulo="Configurações" userName={session.user.nome} papel="ADMIN">
@@ -19,7 +32,34 @@ export default async function ConfiguracoesPage() {
         <Card title="Foto de perfil" descricao="Enviada para o Google Drive da escola">
           <FormUploadFoto tipo="admin" userId={session.user.id} />
         </Card>
-        <Card title="Auditoria" descricao="Últimas 50 ações (espelho do Google Sheets)">
+
+        <Card
+          title="Controle de acessos"
+          descricao="Ative ou inative o login de alunos e professores"
+          className="lg:col-span-2"
+        >
+          <FormControleAcessos
+            alunos={alunos.map((a) => ({
+              id: a.id,
+              nome: a.nome,
+              identificador: a.codigo,
+              ativo: a.ativo,
+              extra: a.matriculas.map((m) => m.turma.curso.nome).join(", ") || undefined,
+            }))}
+            professores={professores.map((p) => ({
+              id: p.id,
+              nome: p.nome,
+              identificador: p.email,
+              ativo: p.ativo,
+            }))}
+          />
+        </Card>
+
+        <Card
+          title="Auditoria"
+          descricao="Últimas 50 ações (espelho do Google Sheets)"
+          className="lg:col-span-2"
+        >
           {logs.length === 0 ? (
             <EmptyState icone="cog" titulo="Nenhum log registrado ainda" />
           ) : (

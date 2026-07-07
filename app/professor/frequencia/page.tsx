@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { DashboardShell, Card, EmptyState } from "@/components/DashboardShell";
+import { DashboardShell, Card, EmptyState, AlertBanner } from "@/components/DashboardShell";
 import { CursoBadge } from "@/components/ui/CursoBadge";
-import { FormFrequencia } from "@/components/forms/FormFrequencia";
+import { FrequenciaSomenteLeitura } from "@/components/FrequenciaSomenteLeitura";
 
 export default async function ProfessorFrequenciaPage({
   searchParams,
@@ -36,12 +36,18 @@ export default async function ProfessorFrequenciaPage({
 
   return (
     <DashboardShell
-      titulo="Lançamento de Frequência"
+      titulo="Frequência das Turmas"
       userName={session.user.nome}
       papel="PROFESSOR"
     >
+      <AlertBanner tipo="info">
+        <strong>Somente visualização.</strong> O lançamento e a edição de frequência são
+        feitos exclusivamente pela administração. Aqui você acompanha a chamada já
+        registrada para cada aula.
+      </AlertBanner>
+
       {turmas.length === 0 ? (
-        <Card>
+        <Card className="mt-4">
           <EmptyState
             icone="check-circle"
             titulo="Nenhuma turma vinculada"
@@ -49,7 +55,7 @@ export default async function ProfessorFrequenciaPage({
           />
         </Card>
       ) : (
-        <div className="space-y-6">
+        <div className="mt-4 space-y-6">
           {turmas.map((t) => (
             <Card
               key={t.id}
@@ -58,7 +64,7 @@ export default async function ProfessorFrequenciaPage({
             >
               {!t.modulos[0] ? (
                 <p className="text-sm text-gray-500">
-                  Sem módulo ativo neste mês. Peça à administração para gerar o módulo.
+                  Sem módulo ativo neste mês.
                 </p>
               ) : (
                 t.modulos[0].aulas.map((aula) => {
@@ -71,11 +77,9 @@ export default async function ProfessorFrequenciaPage({
                         Aula {aula.numero} —{" "}
                         {new Date(aula.data).toLocaleDateString("pt-BR")}
                       </p>
-                      <FormFrequencia
-                        aulaId={aula.id}
+                      <FrequenciaSomenteLeitura
                         alunos={t.matriculas.map((m) => m.aluno)}
-                        cursoRedacao={t.curso.nome === "REDACAO"}
-                        iniciais={iniciais}
+                        frequencias={iniciais}
                       />
                     </div>
                   );

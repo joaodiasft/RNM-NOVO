@@ -1,28 +1,10 @@
 import { NomeCurso } from "@prisma/client";
+import { CORES_CURSO as CORES } from "@/lib/constants/cores";
 
 export const CORES_CURSO: Record<
   NomeCurso,
   { primaria: string; clara: string; escura: string; label: string }
-> = {
-  REDACAO: {
-    primaria: "#D6336C",
-    clara: "#FDE8F0",
-    escura: "#A61E4D",
-    label: "Redação",
-  },
-  EXATAS: {
-    primaria: "#2F9E44",
-    clara: "#E6F7EA",
-    escura: "#1B6E2E",
-    label: "Exatas",
-  },
-  MATEMATICA: {
-    primaria: "#1971C2",
-    clara: "#E7F3FF",
-    escura: "#144C82",
-    label: "Matemática",
-  },
-};
+> = CORES;
 
 export const ADMIN_COR = "#212529";
 

@@ -9,6 +9,7 @@ import {
   relatorioAdminFinanceiro,
   exportarRelatorioTurmaXlsx,
 } from "@/lib/services/relatorios";
+import { gerarPdfPrimeiroAcesso } from "@/lib/services/pdf-primeiro-acesso";
 
 export async function GET(request: Request) {
   const { session, error } = await requireApiAuth(["ADMIN", "PROFESSOR"]);
@@ -42,6 +43,21 @@ export async function GET(request: Request) {
   if (tipo === "financeiro") {
     if (session!.user.papel !== "ADMIN") return respostaProibida();
     return NextResponse.json(await relatorioAdminFinanceiro());
+  }
+
+  const alunoId = searchParams.get("alunoId");
+  if (tipo === "primeiro-acesso" && alunoId) {
+    if (session!.user.papel !== "ADMIN") return respostaProibida();
+    if (formato === "pdf") {
+      const bytes = await gerarPdfPrimeiroAcesso(alunoId);
+      return new NextResponse(Buffer.from(bytes), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename=primeiro-acesso-${alunoId}.pdf`,
+        },
+      });
+    }
+    return NextResponse.json({ erro: "Use formato=pdf" }, { status: 400 });
   }
 
   return NextResponse.json({ erro: "Parâmetros inválidos" }, { status: 400 });
