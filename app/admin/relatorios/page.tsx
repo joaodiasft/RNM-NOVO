@@ -30,6 +30,26 @@ export default async function RelatoriosPage() {
     <DashboardShell titulo="Relatórios" userName={session.user.nome} papel="ADMIN">
       <div className="grid gap-4 lg:grid-cols-2">
         <Card
+          title="Tutorial do Aluno — PDF completo"
+          descricao="Manual ilustrado: login, navegação, cursos, calendário, redação, avisos e rematrícula"
+          className="lg:col-span-2"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-600">
+              14 páginas em A4 com imagens. Envie aos alunos e responsáveis no primeiro acesso.
+            </p>
+            <Link
+              href="/docs/tutorial-aluno.pdf"
+              target="_blank"
+              className="btn-primary shrink-0 text-center"
+            >
+              <Icon name="download" className="h-4 w-4" />
+              Baixar tutorial PDF
+            </Link>
+          </div>
+        </Card>
+
+        <Card
           title="Relatório do aluno — para o responsável"
           descricao="PDF A4 completo: frequência, redações (notas, competências ENEM e feedback), cursos e financeiro — pronto para entregar ao pai"
           className="lg:col-span-2"
