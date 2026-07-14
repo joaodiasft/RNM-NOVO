@@ -54,7 +54,11 @@ export async function GET(request: Request) {
   }
 
   if (tipo === "pagamentos") {
-    await atualizarPagamentosAtrasados();
+    try {
+      await atualizarPagamentosAtrasados();
+    } catch (err) {
+      console.error("[operacional/pagamentos] atrasados", err);
+    }
     const alunoId = await alunoPermitido();
     if (papel !== "ADMIN" && !alunoId) return NextResponse.json([]);
     const pagamentos = await prisma.pagamento.findMany({

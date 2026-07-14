@@ -24,7 +24,12 @@ export default async function FinanceiroPage() {
   const session = await auth();
   if (!session || session.user.papel !== "ADMIN") redirect("/login");
 
-  await atualizarPagamentosAtrasados();
+  // Best-effort: nunca derrubar a página se a marcação de atraso falhar
+  try {
+    await atualizarPagamentosAtrasados();
+  } catch (err) {
+    console.error("[financeiro] atualizarPagamentosAtrasados", err);
+  }
   const competenciaAtual = new Date().toISOString().slice(0, 7);
 
   const pagamentos = await prisma.pagamento.findMany({

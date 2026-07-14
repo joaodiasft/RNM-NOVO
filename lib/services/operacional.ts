@@ -84,17 +84,31 @@ export async function gerarPagamentosCompetencia(competencia?: string) {
   return { criados, competencia: comp, totalMatriculas: matriculas.length };
 }
 
+/**
+ * Marca pendentes de competências anteriores como ATRASADO.
+ * Não usa updateMany: o adapter Neon HTTP (Cloudflare Workers) não
+ * suporta transações — updateMany falha com "Transactions are not supported in HTTP mode".
+ */
 export async function atualizarPagamentosAtrasados() {
-  const hoje = new Date();
-  const competenciaAtual = hoje.toISOString().slice(0, 7);
-  const result = await prisma.pagamento.updateMany({
+  const competenciaAtual = new Date().toISOString().slice(0, 7);
+  const pendentes = await prisma.pagamento.findMany({
     where: {
       status: "PENDENTE",
       competencia: { lt: competenciaAtual },
     },
-    data: { status: "ATRASADO" as StatusPagamento },
+    select: { id: true },
   });
-  return result.count;
+  if (pendentes.length === 0) return 0;
+
+  await Promise.all(
+    pendentes.map((p) =>
+      prisma.pagamento.update({
+        where: { id: p.id },
+        data: { status: "ATRASADO" as StatusPagamento },
+      })
+    )
+  );
+  return pendentes.length;
 }
 
 export async function cadastrarAcessoExterno(data: {
