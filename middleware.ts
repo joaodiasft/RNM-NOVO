@@ -28,12 +28,15 @@ function comSeguranca(res: NextResponse): NextResponse {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const host = request.headers.get("host") || "";
+  // Prefer hostname da URL (mais confiável que Host atrás de proxies)
+  const host = (request.nextUrl.hostname || request.headers.get("host") || "")
+    .toLowerCase()
+    .split(":")[0];
 
   // Canonical: www → apex (mesmo Worker, evita cookie/session em dois hosts)
   if (host === "www.redacaonotamil.site") {
-    const dest = request.nextUrl.clone();
-    dest.host = "redacaonotamil.site";
+    const dest = new URL(request.url);
+    dest.hostname = "redacaonotamil.site";
     dest.protocol = "https:";
     return comSeguranca(NextResponse.redirect(dest, 308));
   }
