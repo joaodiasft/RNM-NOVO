@@ -16,3 +16,12 @@ zone_id = "c6008871fb9f6f63455b259fc4d6ab04"
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+# Logs/exceptions no dashboard Cloudflare (Workers Observability)
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+invocation_logs = true

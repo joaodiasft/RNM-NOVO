@@ -1,12 +1,13 @@
-# Variáveis de ambiente — Cloudflare Pages
-# Cole TODAS em: Pages → seu projeto → Settings → Environment variables
-# Marque Production e Preview
+# Variáveis de ambiente — Cloudflare Workers (redacao-nota-mil)
+# Defina com: npx wrangler secret put NOME_DA_VAR
+# Ou no Dashboard: Workers → redacao-nota-mil → Settings → Variables and Secrets
 
-# === OBRIGATÓRIAS ===
+# === OBRIGATÓRIAS (domínio de produção) ===
 DATABASE_URL=
 AUTH_SECRET=
+AUTH_URL=https://redacaonotamil.site
+NEXTAUTH_URL=https://redacaonotamil.site
 ENCRYPTION_KEY=
-NEXTAUTH_URL=https://SEU-PROJETO.pages.dev
 
 GOOGLE_SERVICE_ACCOUNT_EMAIL=
 GOOGLE_PRIVATE_KEY=
@@ -29,7 +30,12 @@ ADMIN_EMAIL=
 ADMIN_NOME=Administrador
 ADMIN_SENHA_INICIAL=Admin@2026
 
+# === RECOMENDADAS ===
+# Número do botão "Regularizar via PIX" (E.164, sem +). Ex.: 5562999999999
+WHATSAPP_PIX=
+
 # === DICAS ===
-# 1. NEXTAUTH_URL = URL exata do site (sem barra no final)
-# 2. GOOGLE_PRIVATE_KEY = cole a chave inteira; Cloudflare aceita quebras de linha reais
-# 3. Após o primeiro deploy, atualize NEXTAUTH_URL se usar domínio customizado
+# 1. AUTH_URL e NEXTAUTH_URL DEVEM ser https://redacaonotamil.site (não workers.dev)
+# 2. GOOGLE_PRIVATE_KEY = chave inteira; no Wrangler/secret use \n escapado
+# 3. Rotas ativas: redacaonotamil.site/* e www.redacaonotamil.site/* (www redireciona ao apex)
+# 4. Resend "onboarding@resend.dev" só envia ao e-mail da conta Resend até verificar domínio próprio
