@@ -142,7 +142,7 @@ export function DashboardShell({
 
       {/* ===== Header (mobile) ===== */}
       <header
-        className="sticky top-0 z-40 text-white shadow-md lg:hidden"
+        className="pt-safe sticky top-0 z-40 text-white shadow-md lg:hidden"
         style={{
           background: `linear-gradient(120deg, #0f172a 0%, ${accent} 130%)`,
         }}

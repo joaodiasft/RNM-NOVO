@@ -140,15 +140,14 @@ export const authConfig: NextAuthConfig = {
         token.codigo = user.codigo;
         token.papel = user.papel;
         token.alunoSelecionadoId = user.alunoSelecionadoId;
-        import("@/lib/logging/sheets").then(({ registrarLog }) =>
-          registrarLog({
-            nivel: "INFO",
-            categoria: "AUTH",
-            acao: "LOGIN_SUCESSO",
-            usuarioId: user.id,
-            papel: user.papel,
-          })
-        );
+        const { registrarLog } = await import("@/lib/logging/sheets");
+        registrarLog({
+          nivel: "INFO",
+          categoria: "AUTH",
+          acao: "LOGIN_SUCESSO",
+          usuarioId: user.id,
+          papel: user.papel,
+        });
       }
       if (trigger === "update" && session?.alunoSelecionadoId) {
         // Segurança: só aceita a troca se o aluno realmente for filho

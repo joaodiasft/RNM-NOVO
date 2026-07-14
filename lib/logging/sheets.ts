@@ -19,9 +19,6 @@ const SCOPES = [
   "https://www.googleapis.com/auth/drive.file",
 ];
 
-const logQueue: LogEntry[] = [];
-let flushTimer: ReturnType<typeof setTimeout> | null = null;
-
 async function appendRowsToSheet(rows: string[][]) {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
   const sheetName = process.env.GOOGLE_SHEETS_LOG_SHEET || "Logs";
@@ -47,11 +44,26 @@ async function appendRowsToSheet(rows: string[][]) {
   return res.ok;
 }
 
-async function flushLogs() {
-  if (logQueue.length === 0) return;
+async function persistLog(entry: LogEntry) {
+  if (entry.usuarioId && entry.papel) {
+    try {
+      const { prisma } = await import("@/lib/prisma");
+      await prisma.logAuditoria.create({
+        data: {
+          usuarioId: entry.usuarioId,
+          papel: entry.papel as PapelUsuario,
+          acao: entry.acao,
+          entidade: entry.entidade || entry.categoria,
+          entidadeId: entry.entidadeId,
+          detalhes: entry.detalhes ? JSON.stringify(entry.detalhes) : null,
+        },
+      });
+    } catch {
+      // auditoria nunca derruba a request
+    }
+  }
 
-  const batch = logQueue.splice(0, logQueue.length);
-  const rows = batch.map((entry) => [
+  const row = [
     new Date().toISOString(),
     entry.nivel,
     entry.categoria,
@@ -61,49 +73,37 @@ async function flushLogs() {
     entry.entidade || "",
     entry.entidadeId || "",
     entry.detalhes ? JSON.stringify(entry.detalhes) : "",
-  ]);
+  ];
 
   try {
-    const ok = await appendRowsToSheet(rows);
-    if (!ok) throw new Error("Sheets append failed");
+    await appendRowsToSheet([row]);
   } catch (err) {
     console.error("[Sheets Log] Falha ao gravar:", err);
-    try {
-      await appendRowsToSheet(rows);
-    } catch {
-      console.error("[Sheets Log] Retry falhou");
-    }
   }
 }
 
-export function registrarLog(entry: LogEntry): void {
-  if (entry.usuarioId && entry.papel) {
-    import("@/lib/prisma")
-      .then(({ prisma }) =>
-        prisma.logAuditoria.create({
-          data: {
-            usuarioId: entry.usuarioId!,
-            papel: entry.papel as PapelUsuario,
-            acao: entry.acao,
-            entidade: entry.entidade || entry.categoria,
-            entidadeId: entry.entidadeId,
-            detalhes: entry.detalhes ? JSON.stringify(entry.detalhes) : null,
-          },
-        })
-      )
-      .catch(() => {});
+function agendar(work: Promise<unknown>) {
+  try {
+    // Import estático quebraria `next dev` se o context não existir —
+    // usamos require sob demanda e waitUntil para não vazar I/O.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getCloudflareContext } = require("@opennextjs/cloudflare") as {
+      getCloudflareContext: () => { ctx: { waitUntil: (p: Promise<unknown>) => void } };
+    };
+    getCloudflareContext().ctx.waitUntil(work);
+  } catch {
+    void work.catch(() => {});
   }
+}
 
-  logQueue.push(entry);
-  if (!flushTimer) {
-    flushTimer = setTimeout(() => {
-      flushTimer = null;
-      flushLogs().catch(console.error);
-    }, 2000);
-  }
+/**
+ * Best-effort: grava auditoria + Sheets sem setTimeout global
+ * (que reutiliza I/O entre requests no Cloudflare Workers → Error 1101).
+ */
+export function registrarLog(entry: LogEntry): void {
+  agendar(persistLog(entry));
 }
 
 export async function registrarLogSync(entry: LogEntry): Promise<void> {
-  logQueue.push(entry);
-  await flushLogs();
+  await persistLog(entry);
 }

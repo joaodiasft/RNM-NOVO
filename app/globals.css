@@ -173,6 +173,20 @@ body {
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
+/* Área segura superior (notch/status bar em PWA standalone) */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Toque mais responsivo: sem flash azul e sem atraso de double-tap-zoom */
+button,
+a,
+select,
+input[type="checkbox"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 /* Inputs/selects legíveis no mobile (evita zoom iOS) */
 @media (max-width: 640px) {
   .input,
@@ -187,6 +201,19 @@ body {
   .btn-success,
   .btn-danger {
     min-height: 44px;
+  }
+
+  textarea.input {
+    min-height: 88px;
+  }
+}
+
+/* Em telas de toque, nenhum botão de ação fica menor que 38px de altura */
+@media (pointer: coarse) {
+  main button,
+  main a.btn-primary,
+  main a.btn-secondary {
+    min-height: 38px;
   }
 }
 
