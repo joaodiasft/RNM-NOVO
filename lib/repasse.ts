@@ -1,6 +1,16 @@
 import type { NomeCurso } from "@prisma/client";
 
-/** Percentual da escola (administrativo) por curso — resto vai ao professor. */
+/** Cursos que entram no relatório de repasse escola/professor. */
+export const CURSOS_COM_REPASSE: NomeCurso[] = ["EXATAS", "MATEMATICA"];
+
+export function cursoTemRepasse(curso: NomeCurso): boolean {
+  return CURSOS_COM_REPASSE.includes(curso);
+}
+
+/**
+ * Percentual da escola por curso — resto vai ao professor.
+ * Repasse só existe em Exatas e Matemática; Redação fica 100% escola.
+ */
 export function percentuaisRepasse(curso: NomeCurso): {
   escola: number;
   professor: number;

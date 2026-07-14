@@ -28,7 +28,6 @@ export const NAV_POR_PAPEL: Record<PapelUsuario, NavEntry[]> = {
   PROFESSOR: [
     { href: "/professor", label: "Dashboard", icone: "home", exato: true },
     { href: "/professor/turmas", label: "Turmas", icone: "users" },
-    { href: "/professor/frequencia", label: "Frequência", curto: "Freq.", icone: "check-circle" },
     { href: "/professor/redacao", label: "Redação", icone: "pencil" },
     { href: "/professor/avisos", label: "Avisos", icone: "bell" },
     { href: "/professor/relatorios", label: "Relatórios", curto: "Relat.", icone: "chart" },

@@ -90,10 +90,10 @@ export default async function ProfessorDashboard() {
                   <div className="flex items-center gap-2">
                     <CursoBadge curso={t.curso.nome} />
                     <Link
-                      href={`/professor/frequencia?turma=${t.id}`}
-                      className="btn-primary px-3 py-2 text-xs"
+                      href={`/professor/turmas`}
+                      className="btn-secondary px-3 py-2 text-xs"
                     >
-                      Lançar frequência
+                      Ver turma
                     </Link>
                   </div>
                 }

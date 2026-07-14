@@ -13,6 +13,7 @@ import { CursoBadge } from "@/components/ui/CursoBadge";
 import { atualizarPagamentosAtrasados } from "@/lib/services/operacional";
 import { FormConfirmarPagamento } from "@/components/forms/FormConfirmarPagamento";
 import { FormGerarCobrancas } from "@/components/forms/FormGerarCobrancas";
+import { cursoTemRepasse } from "@/lib/repasse";
 
 const LABEL_CURSO: Record<string, string> = {
   REDACAO: "Redação",
@@ -62,9 +63,11 @@ export default async function FinanceiroPage() {
   }
   const meses = [...porMes.entries()].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 4);
 
+  // Repasse só Exatas (30/70) e Matemática (20/80) — Redação não entra
   const repassePorCurso = confirmados.reduce(
     (acc, p) => {
       const curso = p.matriculaCurso.turma.curso.nome;
+      if (!cursoTemRepasse(curso)) return acc;
       if (!acc[curso]) acc[curso] = { escola: 0, professor: 0, total: 0 };
       acc[curso].total += Number(p.valor);
       acc[curso].escola += Number(p.valorEscola ?? 0);
@@ -159,14 +162,14 @@ export default async function FinanceiroPage() {
 
       <Card
         title="Repasse por curso (confirmados)"
-        descricao="Exatas 30/70 · Matemática 20/80 · Redação 100% escola"
+        descricao="Somente Exatas (escola 30% / professor 70%) e Matemática (escola 20% / professor 80%). Redação não tem repasse."
         className="mb-4"
       >
         {Object.keys(repassePorCurso).length === 0 ? (
           <EmptyState
             icone="currency"
             titulo="Nenhum repasse ainda"
-            descricao="Confirme pagamentos para calcular a divisão."
+            descricao="Confirme pagamentos de Exatas ou Matemática para ver a divisão."
           />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
